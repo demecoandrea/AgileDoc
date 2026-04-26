@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import winreg
+from version import __version__, APP_NAME
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QMessageBox
 from PyQt6.QtGui import QIcon, QAction, QCursor
 
@@ -38,7 +39,7 @@ class AgileDocDaemon:
 
         self.tray_menu = QMenu()
 
-        self.title_action = QAction("✨ AgileDoc v.0.9", self.tray_menu)
+        self.title_action = QAction(f"✨ {APP_NAME} v{__version__}", self.tray_menu)
         self.title_action.setDisabled(True) 
         self.tray_menu.addAction(self.title_action)
         
