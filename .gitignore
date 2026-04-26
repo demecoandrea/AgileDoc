@@ -1,0 +1,15 @@
+/.aiexclude
+/.continue
+/app_daemon.build
+/app_daemon.dist
+/build
+/conf
+/env64
+/signatures
+/subset test images
+/temp
+/Test Images per riconoscitore
+/yolo_active_learning
+/__pycache__
+*.pt
+*.onnx
