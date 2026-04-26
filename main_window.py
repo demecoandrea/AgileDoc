@@ -839,6 +839,7 @@ class MainWindow(QMainWindow):
 
     def action_quick_save(self):
         if not self.canvas.pages: return
+        if self.canvas.is_editing_mode: self.canvas.set_editing_mode(False)
         if not self.btn_name_warning.isHidden(): self.bump_filename_counter()
         filename = self.txt_quick_filename.text().strip()
         if not filename.lower().endswith(".pdf"): filename += ".pdf"
@@ -849,6 +850,7 @@ class MainWindow(QMainWindow):
 
     def action_export_pdf_as(self):
         if not self.canvas.pages: return
+        if self.canvas.is_editing_mode: self.canvas.set_editing_mode(False)
         file_path, _ = QFileDialog.getSaveFileName(self, "Salva con Nome", os.path.join(self.quick_save_folder, self.txt_quick_filename.text()), "File PDF (*.pdf)")
         if file_path:
             if self.canvas.export_to_pdf(file_path, dpi=self.get_selected_dpi(), flatten_annotations=self.pdf_flatten_annotations):
