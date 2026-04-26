@@ -1,11 +1,10 @@
 import os
-import glob
 import json
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, 
                              QComboBox, QSpinBox, QColorDialog, QFrame, QHBoxLayout, 
                              QGraphicsDropShadowEffect, QSizePolicy, QSlider, QCheckBox)
 from PyQt6.QtCore import pyqtSignal, Qt, QRectF
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
+from PyQt6.QtGui import QColor, QPainter
 
 # Importiamo la finestra modale del manager delle firme
 from signature_manager import SignatureManagerDialog

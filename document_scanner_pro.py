@@ -2,14 +2,11 @@ import os
 import cv2
 import json
 import numpy as np
-import time
 import queue
 import uuid
-import shutil
-import threading
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QGraphicsView, QGraphicsScene, QGraphicsItem,
-                             QSplitter, QMessageBox, QApplication, QComboBox, QWidget, QFrame, QSizePolicy)
+                             QSplitter, QApplication, QWidget, QFrame, QSizePolicy)
 from PyQt6.QtGui import QPainter, QPixmap, QImage, QPen, QBrush, QColor, QPolygonF
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPointF, QRectF, QTimer, QByteArray
 

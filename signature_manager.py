@@ -5,8 +5,8 @@ import shutil
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                              QListWidget, QListWidgetItem, QFileDialog,
                              QMessageBox, QSpinBox, QFormLayout, QDialogButtonBox, QLineEdit, QWidget, QLabel)
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QPen, QColor, QImage, QPainterPath, QTransform
-from PyQt6.QtCore import Qt, QSize, QPointF, QRectF
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QPen, QImage, QPainterPath, QTransform
+from PyQt6.QtCore import Qt, QSize, QPointF
 
 class SignatureDrawDialog(QDialog):
     """Finestra per disegnare la firma a mano libera in Alta Qualità Vettoriale."""

@@ -1,7 +1,6 @@
 from PyQt6.QtWidgets import QGraphicsTextItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QApplication, QMenu, QStyle
-from PyQt6.QtGui import QColor, QBrush, QPen, QPainter, QFont, QPainterPath, QTransform, QAction, QPainterPathStroker
+from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QPainterPath, QAction, QPainterPathStroker
 from PyQt6.QtCore import Qt, QRectF, QPointF, QTimer
-import json
 
 # Dimensione fissa degli handle in pixel di schermo — deve corrispondere a _HANDLE_PX in canvas_editor.py
 _HANDLE_PX = 20

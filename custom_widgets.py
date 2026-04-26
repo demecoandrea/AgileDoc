@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QPushButton, QWidget, QHBoxLayout, QLabel, QFrame
-from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetrics
+from PyQt6.QtGui import QPainter, QColor, QFontMetrics
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 
 class ToggleSwitch(QWidget):

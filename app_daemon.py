@@ -4,7 +4,6 @@ import json
 import winreg
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QMessageBox
 from PyQt6.QtGui import QIcon, QAction, QCursor
-from PyQt6.QtCore import Qt
 
 from main_window import MainWindow, setup_dark_theme
 from api_server import LocalServerThread

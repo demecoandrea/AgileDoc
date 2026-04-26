@@ -1,10 +1,9 @@
-from PyQt6.QtWidgets import (QGraphicsTextItem, QGraphicsView, QGraphicsScene, QGraphicsRectItem, 
+from PyQt6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsRectItem, 
                              QGraphicsPixmapItem, QMenu, QGraphicsItem, QWidget,
                              QVBoxLayout, QHBoxLayout, QPushButton, QApplication, 
                              QMessageBox, QLabel, QFrame, QProgressDialog, QGraphicsDropShadowEffect,
                              QStyle)
-from PyQt6.QtGui import (QColor, QBrush, QPen, QPainter, QPixmap, QImage, 
-                         QTransform, QAction, QImageReader, QMouseEvent, QPainterPath, QCursor)
+from PyQt6.QtGui import (QColor, QBrush, QPen, QPainter, QPixmap, QTransform, QAction, QImageReader, QMouseEvent, QPainterPath, QCursor)
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QTimer, QByteArray, QBuffer, QIODevice
 import json
 import shutil

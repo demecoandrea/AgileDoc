@@ -1,11 +1,9 @@
 import shutil
-import sys
 import os
 import json
 import uuid
 import re
 import socket 
-import time  
 from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QSplitter, QScrollArea, QLineEdit,

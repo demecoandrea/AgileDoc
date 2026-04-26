@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QStyle, QTreeView, QAbstractItemView, QHeaderView, QLabel, QApplication, QMenu, QMessageBox
+from PyQt6.QtWidgets import QTreeView, QAbstractItemView, QHeaderView, QLabel, QApplication, QMenu, QMessageBox
 from PyQt6.QtGui import QFileSystemModel, QDrag, QPixmap, QImage
 from PyQt6.QtCore import Qt, QDir, QMimeData, QUrl
 import os
