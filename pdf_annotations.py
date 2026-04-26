@@ -16,9 +16,7 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         self.border_color = QColor(0, 0, 0, 255)
         self.default_text_color = QColor(0, 0, 0)
         
-        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
-                      QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
-                      QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape |
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape |
                       QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         
         self.setAcceptHoverEvents(True)
@@ -348,9 +346,7 @@ class AnnotationPathItem(QGraphicsPathItem):
         self.is_highlighter = True
         
         self.points = [] 
-        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
-                      QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
-                      QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         
         self.is_editable = False
         self.setAcceptHoverEvents(True)
