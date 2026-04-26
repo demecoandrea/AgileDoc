@@ -152,8 +152,9 @@ class AgileDocDaemon:
         # FIX POSIZIONAMENTO MENU: Intercettiamo il click destro (Context)
         if reason == QSystemTrayIcon.ActivationReason.Context:
             pos = QCursor.pos()
-            # Alziamo il menu di 25 pixel (puoi aggiustare questo valore se serve)
-            pos.setY(pos.y() - 25) 
+            menu_size = self.tray_menu.sizeHint()
+            pos.setX(pos.x() - menu_size.width() - 10)
+            pos.setY(pos.y() - menu_size.height() - 10)
             self.tray_menu.popup(pos)
         elif reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_main_window()

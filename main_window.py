@@ -289,7 +289,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"Gestione Documenti Medici - {APP_NAME} v{__version__}")
+        self.setWindowTitle(f"{APP_NAME} v{__version__}")
         self.resize(1100, 750)
         
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
