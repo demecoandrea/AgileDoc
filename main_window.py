@@ -126,10 +126,10 @@ class ScannerSelectionDialog(QDialog):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, current_size, current_dynamic, current_port, current_hub_name, current_middle_click, parent=None):
+    def __init__(self, current_size, current_dynamic, current_port, current_hub_name, current_middle_click, current_flatten=True, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Impostazioni AgileDoc")
-        self.resize(480, 250)
+        self.resize(480, 280)
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -155,12 +155,16 @@ class SettingsDialog(QDialog):
         self.combo_middle.setCurrentText(current_middle_click)
         self.combo_middle.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555;")
 
+        self.chk_flatten = QCheckBox("Appiattisci annotazioni (PDF non modificabile)")
+        self.chk_flatten.setChecked(current_flatten)
+
         form.addRow("Nome Computer (Hub):", self.txt_hub_name)
         form.addRow("Porta Server Android:", self.spin_port)
         form.addRow("", QLabel("")) 
         form.addRow("Azione Tasto Centrale:", self.combo_middle)
         form.addRow("Dimensione Sneak Peek:", self.combo_size)
         form.addRow("", self.chk_dynamic)
+        form.addRow("", self.chk_flatten)
 
         layout.addLayout(form)
 
@@ -172,7 +176,7 @@ class SettingsDialog(QDialog):
     def get_data(self):
         return (self.combo_size.currentText(), self.chk_dynamic.isChecked(), 
                 self.spin_port.value(), self.txt_hub_name.text().strip(), 
-                self.combo_middle.currentText())
+                self.combo_middle.currentText(), self.chk_flatten.isChecked())
 
 
 class ShortcutsDialog(QDialog):
@@ -314,7 +318,9 @@ class MainWindow(QMainWindow):
         self.scanner_method = "TWAIN"
         self.selected_scanner_id = None
         self.selected_scanner_name = None
-        self.scanner_loop_enabled = False 
+        self.scanner_loop_enabled = False
+
+        self.pdf_flatten_annotations = True 
         
         self.file_watcher = QFileSystemWatcher(self)
         self.file_watcher.directoryChanged.connect(self.validate_quick_filename)
@@ -698,14 +704,15 @@ class MainWindow(QMainWindow):
         self.lbl_server_status.setText(f"🖥️ {self.hub_name}\n📡 http://{local_ip}:{self.server_port}")
 
     def open_settings(self):
-        dialog = SettingsDialog(self.sneak_peek_size, self.sneak_peek_dynamic, self.server_port, self.hub_name, self.middle_click_mode, self)
+        dialog = SettingsDialog(self.sneak_peek_size, self.sneak_peek_dynamic, self.server_port, self.hub_name, self.middle_click_mode, self.pdf_flatten_annotations, self)
         if dialog.exec():
-            new_size, new_dynamic, new_port, new_hub_name, new_middle = dialog.get_data()
+            new_size, new_dynamic, new_port, new_hub_name, new_middle, new_flatten = dialog.get_data()
             if not new_hub_name: new_hub_name = socket.gethostname()
             if new_port != self.server_port or new_hub_name != self.hub_name:
                 self.server_port, self.hub_name = new_port, new_hub_name
                 self.server_settings_changed.emit(new_port, new_hub_name)
             self.sneak_peek_size, self.sneak_peek_dynamic, self.middle_click_mode = new_size, new_dynamic, new_middle
+            self.pdf_flatten_annotations = new_flatten
             self.canvas.middle_click_mode = new_middle
             self.propagate_sneak_peek_settings(); self.save_config(); self.update_server_status_ui()
 
@@ -829,7 +836,7 @@ class MainWindow(QMainWindow):
         if not self.btn_name_warning.isHidden(): self.bump_filename_counter()
         filename = self.txt_quick_filename.text().strip()
         if not filename.lower().endswith(".pdf"): filename += ".pdf"
-        if self.canvas.export_to_pdf(os.path.join(self.quick_save_folder, filename), dpi=self.get_selected_dpi()):
+        if self.canvas.export_to_pdf(os.path.join(self.quick_save_folder, filename), dpi=self.get_selected_dpi(), flatten_annotations=self.pdf_flatten_annotations):
             self.is_document_dirty = False; self.lbl_save_status.show()
             QTimer.singleShot(3000, self.lbl_save_status.hide); self.bump_filename_counter()
         else: QMessageBox.critical(self, "Errore", "Si è verificato un errore durante la generazione del PDF.")
@@ -838,7 +845,7 @@ class MainWindow(QMainWindow):
         if not self.canvas.pages: return
         file_path, _ = QFileDialog.getSaveFileName(self, "Salva con Nome", os.path.join(self.quick_save_folder, self.txt_quick_filename.text()), "File PDF (*.pdf)")
         if file_path:
-            if self.canvas.export_to_pdf(file_path, dpi=self.get_selected_dpi()):
+            if self.canvas.export_to_pdf(file_path, dpi=self.get_selected_dpi(), flatten_annotations=self.pdf_flatten_annotations):
                 self.is_document_dirty = False 
                 QMessageBox.information(self, "Successo", f"Fascicolo esportato correttamente!\n\nPosizione: {file_path}\nDimensione: {os.path.getsize(file_path)/(1024*1024):.2f} MB")
             else: QMessageBox.critical(self, "Errore", "Errore durante la generazione del PDF.")
@@ -935,6 +942,7 @@ class MainWindow(QMainWindow):
                     self.middle_click_mode = data.get("middle_click_mode", "Strumento Mano (Pan)")
                     self.scanner_method, self.selected_scanner_id, self.selected_scanner_name = data.get("scanner_method", "TWAIN"), data.get("scanner_id", None), data.get("scanner_name", None)
                     self.scanner_loop_enabled = data.get("scanner_loop_enabled", False)
+                    self.pdf_flatten_annotations = data.get("pdf_flatten_annotations", True)
                     editor_docked = data.get("editor_docked", False)
                     if "geometry" in data: self.restoreGeometry(QByteArray.fromHex(data["geometry"].encode('ascii')))
                     if "window_state" in data: self.restoreState(QByteArray.fromHex(data["window_state"].encode('ascii')))
@@ -964,7 +972,7 @@ class MainWindow(QMainWindow):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f: data = json.load(f)
             except Exception: pass
-        data.update({"folders": folders_data, "pdf_quality_index": self.combo_quality.currentIndex(), "zoom_level": self.canvas.current_zoom, "quick_save_folder": self.quick_save_folder, "sneak_peek_size": self.sneak_peek_size, "sneak_peek_dynamic": self.sneak_peek_dynamic, "server_port": self.server_port, "hub_name": self.hub_name, "middle_click_mode": self.middle_click_mode, "scanner_method": self.scanner_method, "scanner_id": self.selected_scanner_id, "scanner_name": self.selected_scanner_name, "scanner_loop_enabled": self.scanner_loop_enabled, "advanced_adjustment_enabled": self.toggle_advanced.isChecked(), "editor_docked": getattr(self.canvas, '_editor_docked', False), "custom_colors": get_custom_colors(), "geometry": self.saveGeometry().toHex().data().decode('ascii'), "window_state": self.saveState().toHex().data().decode('ascii'), "splitter_state": self.splitter.saveState().toHex().data().decode('ascii')})
+        data.update({"folders": folders_data, "pdf_quality_index": self.combo_quality.currentIndex(), "zoom_level": self.canvas.current_zoom, "quick_save_folder": self.quick_save_folder, "sneak_peek_size": self.sneak_peek_size, "sneak_peek_dynamic": self.sneak_peek_dynamic, "server_port": self.server_port, "hub_name": self.hub_name, "middle_click_mode": self.middle_click_mode, "scanner_method": self.scanner_method, "scanner_id": self.selected_scanner_id, "scanner_name": self.selected_scanner_name, "scanner_loop_enabled": self.scanner_loop_enabled, "pdf_flatten_annotations": self.pdf_flatten_annotations, "advanced_adjustment_enabled": self.toggle_advanced.isChecked(), "editor_docked": getattr(self.canvas, '_editor_docked', False), "custom_colors": get_custom_colors(), "geometry": self.saveGeometry().toHex().data().decode('ascii'), "window_state": self.saveState().toHex().data().decode('ascii'), "splitter_state": self.splitter.saveState().toHex().data().decode('ascii')})
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
         except Exception: pass

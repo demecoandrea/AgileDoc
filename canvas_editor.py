@@ -2381,7 +2381,7 @@ class CanvasEditor(QGraphicsView):
         except: 
             pass
 
-    def export_to_pdf(self, file_path, dpi=150):
+    def export_to_pdf(self, file_path, dpi=150, flatten_annotations=True):
         if not self.pages: 
             return False
             
@@ -2477,7 +2477,7 @@ class CanvasEditor(QGraphicsView):
                             scene_pt = item.mapToScene(pt)
                             x = scene_pt.x() - cp.scenePos().x()
                             y = scene_pt.y() - cp.scenePos().y()
-                            pts.append(fitz.Point(x, y))
+                            pts.append((float(x), float(y)))
                             
                         annot = out_p.add_ink_annot([pts])
                         tc = (item.color.redF(), item.color.greenF(), item.color.blueF())
@@ -2489,9 +2489,12 @@ class CanvasEditor(QGraphicsView):
                             except: pass
                         annot.update()
                             
+            if flatten_annotations:
+                out_pdf.bake()
+
             out_pdf.save(file_path, garbage=3, deflate=True)
             out_pdf.close()
-            
+
             for doc in open_src_docs.values(): 
                 doc.close()
             return True
