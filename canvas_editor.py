@@ -619,6 +619,7 @@ class CanvasEditor(QGraphicsView):
     selection_changed = pyqtSignal(list)
     advanced_adjustment_requested = pyqtSignal(list, int)
     advanced_adjustment_for_items_requested = pyqtSignal(list)
+    fab_action_requested = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -698,16 +699,17 @@ class CanvasEditor(QGraphicsView):
         os.makedirs(self.img_dir, exist_ok=True)
         self.state_file = os.path.join(self.workspace_dir, "canvas_state.json")
         
-        self.btn_fab_new = QPushButton("＋", self) 
-        self.btn_fab_new.setStyleSheet("background-color: #0078d7; color: white; font-size: 28px; font-weight: bold; border: none; border-radius: 28px;")
+        self.btn_fab_new = QPushButton("📄", self) 
         self.btn_fab_new.setFixedSize(56, 56) 
+        self.btn_fab_new.setCursor(Qt.CursorShape.PointingHandCursor)
         
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(15)
         shadow.setColor(QColor(0, 0, 0, 100))
         shadow.setOffset(0, 5)
         self.btn_fab_new.setGraphicsEffect(shadow)
-        self.btn_fab_new.hide()
+        self.btn_fab_new.clicked.connect(self._on_fab_clicked)
+        self._update_fab_state()
         
         self.editor_toolbar = EditorToolbar(self)
         self.editor_toolbar.hide()
@@ -1114,6 +1116,30 @@ class CanvasEditor(QGraphicsView):
         self.splash_label.move((vp_w - self.splash_label.width()) // 2, (vp_h - self.splash_label.height()) // 2)
         self.splash_label.show()
 
+    def _update_fab_state(self):
+        if self.pages:
+            self.btn_fab_new.setText("🗑️")
+            self.btn_fab_new.setToolTip("Nuovo documento (svuota canvas)\n[SHIFT+click] per saltare la conferma")
+            self.btn_fab_new.setStyleSheet(
+                "background-color: #7a1a1a; color: white; font-size: 26px; font-weight: bold; "
+                "border: none; border-radius: 28px;"
+            )
+        else:
+            self.btn_fab_new.setText("📄")
+            self.btn_fab_new.setToolTip("Aggiungi nuova pagina vuota")
+            self.btn_fab_new.setStyleSheet(
+                "background-color: #0078d7; color: white; font-size: 26px; font-weight: bold; "
+                "border: none; border-radius: 28px;"
+            )
+        self.btn_fab_new.show()
+
+    def _on_fab_clicked(self):
+        if not self.pages:
+            self.add_page()
+        else:
+            skip_confirm = bool(QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier)
+            self.fab_action_requested.emit(skip_confirm)
+
     def emit_selection_status(self):
         indices = sorted([self.pages.index(p) + 1 for p in self.selected_pages if p in self.pages])
         self.selection_changed.emit(indices)
@@ -1207,7 +1233,8 @@ class CanvasEditor(QGraphicsView):
         self.emit_page_status()
         self.emit_selection_status() 
         self.save_workspace()
-        self._update_splash_screen() 
+        self._update_splash_screen()
+        self._update_fab_state()
 
     def toggle_page_orientation(self, page):
         self._commit_deletion()

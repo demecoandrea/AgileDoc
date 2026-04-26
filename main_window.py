@@ -690,7 +690,7 @@ class MainWindow(QMainWindow):
         self.canvas.page_changed.connect(self.update_navigation_ui)
         self.canvas.workspace_changed.connect(self.mark_document_dirty)
         self.canvas.selection_changed.connect(self.update_selection_ui)
-        self.canvas.btn_fab_new.clicked.connect(self.action_new_document)
+        self.canvas.fab_action_requested.connect(self._on_fab_clear_requested)
         self.canvas.advanced_adjustment_requested.connect(self.open_advanced_adjustment)
         self.canvas.advanced_adjustment_for_items_requested.connect(self.open_advanced_adjustment_for_items)
         self.toggle_advanced.toggled.connect(lambda checked: setattr(self.canvas, 'advanced_adjustment_enabled', checked))
@@ -763,6 +763,13 @@ class MainWindow(QMainWindow):
                 else: break 
         except Exception as e:
             QMessageBox.warning(self, "Errore Scanner", f"Impossibile completare la scansione:\n{e}")
+
+    def _on_fab_clear_requested(self, skip_confirm):
+        if skip_confirm:
+            self.canvas.clear_all()
+            self.is_document_dirty = False
+        else:
+            self.action_new_document()
 
     def action_new_document(self):
         if self.is_document_dirty and self.canvas.pages:
@@ -853,7 +860,7 @@ class MainWindow(QMainWindow):
     def update_navigation_ui(self, corrente, totale):
         self.current_page_idx = corrente - 1
         self.lbl_page_indicator.setText(f"Pagina {corrente} / {totale}")
-        if hasattr(self, 'canvas') and hasattr(self.canvas, 'btn_fab_new'): self.canvas.btn_fab_new.setVisible(totale > 0)
+        # btn_fab_new è sempre visibile; _update_fab_state() aggiorna icona e comportamento
         
     def update_selection_ui(self, selected_indices):
         if not selected_indices: self.txt_selection_info.setText("")
