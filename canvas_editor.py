@@ -2422,7 +2422,10 @@ class CanvasEditor(QGraphicsView):
                             ba = QByteArray()
                             buf = QBuffer(ba)
                             buf.open(QIODevice.OpenModeFlag.WriteOnly)
-                            img.save(buf, "JPEG", quality=85)
+                            if img.hasAlphaChannel():
+                                img.save(buf, "PNG")
+                            else:
+                                img.save(buf, "JPEG", quality=85)
                             out_p.insert_image(fz_rect, stream=ba.data())
                     elif isinstance(item, AnnotationFreeTextItem):
                         rect = item.sceneBoundingRect()
