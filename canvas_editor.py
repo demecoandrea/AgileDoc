@@ -864,17 +864,23 @@ class CanvasEditor(QGraphicsView):
             return QCursor(pix, int(hotspot_x), int(hotspot_y))
 
         if tool_id == "select":
+            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         elif tool_id == "marker":
-            self.viewport().setCursor(create_badge_cursor("", "", is_marker=True))
+            c = create_badge_cursor("", "", is_marker=True)
+            self.setCursor(c); self.viewport().setCursor(c)
         elif tool_id == "highlighter":
-            self.viewport().setCursor(create_badge_cursor("", "", is_chisel=True))
+            c = create_badge_cursor("", "", is_chisel=True)
+            self.setCursor(c); self.viewport().setCursor(c)
         elif tool_id == "freetext":
-            self.viewport().setCursor(create_badge_cursor("+MDS", "#0078d7"))
+            c = create_badge_cursor("+MDS", "#0078d7")
+            self.setCursor(c); self.viewport().setCursor(c)
         elif tool_id == "textbox":
-            self.viewport().setCursor(create_badge_cursor("+CDT", "#d35400"))
+            c = create_badge_cursor("+CDT", "#d35400")
+            self.setCursor(c); self.viewport().setCursor(c)
         elif tool_id == "signature":
-            self.viewport().setCursor(create_badge_cursor("+FIR", "#27ae60"))
+            c = create_badge_cursor("+FIR", "#27ae60")
+            self.setCursor(c); self.viewport().setCursor(c)
 
     def _on_editor_tool_changed(self, tool_id):
         self.current_editor_tool = tool_id
@@ -1617,22 +1623,26 @@ class CanvasEditor(QGraphicsView):
                     sig_scale = self.editor_props.get("signature_scale", 20) / 100.0 
                     
                     if sig_path and os.path.exists(sig_path):
-                        sig_item = self.add_image_to_page(sig_path, self.active_page, drop_pos=click_pos)
-                        if sig_item:
-                            sig_item.is_signature = True
-                            sig_item.export_mode = "raster" 
-                            sig_item.scale_x = sig_scale
-                            sig_item.scale_y = sig_scale
-                            sig_item.apply_transform(False)
-                            
-                            lp = self.active_page.mapFromScene(click_pos)
-                            ws = sig_item.pixmap().width() * sig_scale
-                            hs = sig_item.pixmap().height() * sig_scale
-                            sig_item.setPos(lp.x() - ws / 2, lp.y() - hs / 2)
-                            
-                            self.save_workspace()
-                            
-                            self._signature_just_placed = True
+                        # Prima switchiamo lo strumento (cursor diventa Arrow),
+                        # poi piazziamo la firma: così Qt registra Arrow come cursore
+                        # di sfondo e non il cursore firma.
+                        self.editor_toolbar.set_active_tool("select")
+                        _page = self.active_page
+                        _pos  = click_pos
+                        def _place_sig(page=_page, pos=_pos, path=sig_path, scale=sig_scale):
+                            sig_item = self.add_image_to_page(path, page, drop_pos=pos)
+                            if sig_item:
+                                sig_item.is_signature = True
+                                sig_item.export_mode = "raster"
+                                sig_item.scale_x = scale
+                                sig_item.scale_y = scale
+                                sig_item.apply_transform(False)
+                                lp = page.mapFromScene(pos)
+                                ws = sig_item.pixmap().width() * scale
+                                hs = sig_item.pixmap().height() * scale
+                                sig_item.setPos(lp.x() - ws / 2, lp.y() - hs / 2)
+                                self.save_workspace()
+                        QTimer.singleShot(50, _place_sig)
                     else:
                         self.show_toast("Nessuna firma configurata o file mancante.")
                     event.accept()
@@ -1732,15 +1742,6 @@ class CanvasEditor(QGraphicsView):
             event.accept()
             return
         
-        # Quando l'utente rilascia fisicamente il click dopo aver messo una firma:
-        if getattr(self, '_signature_just_placed', False):
-            self._signature_just_placed = False
-            self.editor_toolbar.set_active_tool("select")
-            QApplication.setOverrideCursor(Qt.CursorShape.ArrowCursor)
-            QTimer.singleShot(0, QApplication.restoreOverrideCursor)
-            event.accept()
-            return
-            
         if self.is_editing_mode and self._current_drawing_path:
             self._current_drawing_path = None
             self.save_workspace()
