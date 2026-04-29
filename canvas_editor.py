@@ -377,17 +377,28 @@ class EditableImageItem(QGraphicsPixmapItem):
             self.scene().views()[0].save_workspace()
 
     def contextMenuEvent(self, event):
-        if not self.is_editable: 
-            return 
+        if not self.is_editable: return 
             
         if not self.isSelected(): 
             self.scene().clearSelection()
             self.setSelected(True)
             
-        selected_items = [item for item in self.scene().selectedItems() if isinstance(item, EditableImageItem)]
+        selected_items = [item for item in self.scene().selectedItems() if getattr(item, 'is_editable', False)]
+        canvas_view = self.scene().views()[0] if self.scene() and self.scene().views() else None
         
         menu = QMenu()
         menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;") 
+
+        if canvas_view:
+            action_copy = QAction("📄 Copia", menu)
+            action_copy.triggered.connect(canvas_view.action_copy)
+            menu.addAction(action_copy)
+            
+            action_paste = QAction("📋 Incolla", menu)
+            action_paste.setEnabled(len(canvas_view._internal_clipboard) > 0)
+            action_paste.triggered.connect(canvas_view.action_paste)
+            menu.addAction(action_paste)
+            menu.addSeparator()
         
         export_menu = menu.addMenu("📦 Modalità Esportazione")
         action_force_raster = QAction("🗜️ Forza Raster (Comprimi)", export_menu)
@@ -652,6 +663,11 @@ class CanvasEditor(QGraphicsView):
         self._auto_scroll_start_pos = None
         self._auto_scroll_current_pos = None
         self._auto_scroll_timer = QTimer(self)
+        self._internal_clipboard = []
+        self._paste_counter = 0
+        self._drag_initial_positions = {}
+        self._is_dragging_items = False
+        self._ctrl_pressed = False
         self._auto_scroll_timer.timeout.connect(self._do_auto_scroll)
         
         self.toast_timer = QTimer(self)
@@ -994,6 +1010,22 @@ class CanvasEditor(QGraphicsView):
         super().drawForeground(painter, rect)
         if not self.is_editing_mode:
             return
+        
+        if self._is_dragging_items and self._ctrl_pressed:
+            painter.save()
+            painter.setPen(QPen(QColor(100, 150, 255, 180), 2, Qt.PenStyle.DashLine))
+            painter.setBrush(QBrush(QColor(0, 100, 200, 30)))
+            for item, orig_pos in self._drag_initial_positions.items():
+                current_pos = item.pos()
+                dx = orig_pos.x() - current_pos.x()
+                dy = orig_pos.y() - current_pos.y()
+                # Applica l'offset al contrario per posizionare il fantasma alla posizione originale
+                ghost_scene_rect = item.sceneBoundingRect().translated(dx, dy)
+                
+                # FIX GHOST: Il painter qui lavora già in coordinate Scena! 
+                painter.drawRect(ghost_scene_rect)
+            painter.restore()
+
         selected = self.scene.selectedItems()
         if not selected:
             return
@@ -1385,6 +1417,23 @@ class CanvasEditor(QGraphicsView):
         key = event.key()
         modifiers = event.modifiers()
         
+        if key == Qt.Key.Key_Control:
+            self._ctrl_pressed = True
+            if self._is_dragging_items:
+                self.scene.invalidate(self.scene.sceneRect(), QGraphicsScene.SceneLayer.ForegroundLayer)
+                self.viewport().update()
+
+        # Scorciatoie Globali Copia/Incolla in editing
+        if self.is_editing_mode and modifiers == Qt.KeyboardModifier.ControlModifier:
+            if key == Qt.Key.Key_C:
+                self.action_copy()
+                event.accept()
+                return
+            elif key == Qt.Key.Key_V:
+                self.action_paste()
+                event.accept()
+                return
+        
         if key == Qt.Key.Key_Escape:
             if self.is_editing_mode: 
                 focus_item = self.scene.focusItem()
@@ -1481,6 +1530,14 @@ class CanvasEditor(QGraphicsView):
                 return
                 
         super().keyPressEvent(event)
+    
+    def keyReleaseEvent(self, event):
+        if event.key() == Qt.Key.Key_Control:
+            self._ctrl_pressed = False
+            if self._is_dragging_items:
+                self.scene.invalidate(self.scene.sceneRect(), QGraphicsScene.SceneLayer.ForegroundLayer)
+                self.viewport().update()
+        super().keyReleaseEvent(event)
 
     def wheelEvent(self, event):
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
@@ -1494,9 +1551,44 @@ class CanvasEditor(QGraphicsView):
 
     def contextMenuEvent(self, event):
         if self.is_editing_mode: 
-            super().contextMenuEvent(event)
+            # Dobbiamo capire se stiamo cliccando su un oggetto (immagine, testo, disegno)
+            click_pos = self.mapToScene(event.pos())
+            item = self.scene.itemAt(click_pos, self.transform())
+            
+            # Risaliamo la gerarchia per capire se l'oggetto o un suo "padre" è editabile
+            eff_item = item
+            is_item_editable = False
+            while eff_item:
+                if getattr(eff_item, 'is_editable', False):
+                    is_item_editable = True
+                    break
+                eff_item = eff_item.parentItem()
+                
+            # Se è un elemento editabile, deleghiamo l'evento a lui (mostrerà il SUO menu contestuale)
+            if is_item_editable:
+                super().contextMenuEvent(event)
+                return
+
+            # Se invece abbiamo cliccato sul foglio vuoto, mostriamo il menu globale Copia/Incolla
+            menu = QMenu(self)
+            menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+            
+            selected = [i for i in self.scene.selectedItems() if getattr(i, 'is_editable', False)]
+            action_copy = QAction("📄 Copia", menu)
+            action_copy.setEnabled(len(selected) > 0)
+            action_copy.triggered.connect(self.action_copy)
+            menu.addAction(action_copy)
+            
+            action_paste = QAction("📋 Incolla", menu)
+            action_paste.setEnabled(len(self._internal_clipboard) > 0)
+            action_paste.triggered.connect(self.action_paste)
+            menu.addAction(action_paste)
+            
+            menu.exec(event.globalPos())
+            event.accept()
             return
             
+        # --- MODALITÀ NON EDITING: MENU DELLE PAGINE ---
         menu = QMenu(self)
         menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
         
@@ -1507,9 +1599,9 @@ class CanvasEditor(QGraphicsView):
             return
             
         export_menu = menu.addMenu("📦 Modalità Esportazione")
-        action_force_raster = QAction("🗜️ Forza modalità rasterizzazione", menu)
+        action_force_raster = QAction("🗜️ Forza modalità rasterizzazione", export_menu)
         action_force_raster.triggered.connect(lambda: self.bulk_set_export_mode("raster", use_selection=True))
-        action_force_native = QAction("📄 Forza modalità nativa (originale)", menu)
+        action_force_native = QAction("📄 Forza modalità nativa (originale)", export_menu)
         action_force_native.triggered.connect(lambda: self.bulk_set_export_mode("native", use_selection=True))
         
         export_menu.addAction(action_force_raster)
@@ -1531,6 +1623,7 @@ class CanvasEditor(QGraphicsView):
             self.delete_selected_pages()
 
     def mousePressEvent(self, event):
+        self._ctrl_pressed = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.button() == Qt.MouseButton.MiddleButton:
             if "Mano" in self.middle_click_mode:
                 self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -1557,137 +1650,164 @@ class CanvasEditor(QGraphicsView):
                 break
             curr = curr.parentItem()
         
-        if event.button() == Qt.MouseButton.LeftButton and self.is_editing_mode and self.current_editor_tool != "select":
-            if page_clicked == self.active_page:
-                is_on_text_item = False
-                curr_t = item
-                while curr_t and curr_t != self.active_page:
-                    if isinstance(curr_t, (AnnotationFreeTextItem, AnnotationTextBoxItem)):
-                        is_on_text_item = True
-                        break
-                    curr_t = curr_t.parentItem()
-                    
-                if self.current_editor_tool == "freetext":
-                    if is_on_text_item:
-                        super().mousePressEvent(event)
-                        return
-                    text_item = AnnotationFreeTextItem(parent_page=self.active_page)
-                    text_item.setPos(self.active_page.mapFromScene(click_pos))
-                    text_item.bg_color = self.editor_props["freetext_bg_color"]
-                    text_item.border_color = self.editor_props["freetext_border_color"]
-                    text_item.setDefaultTextColor(self.editor_props["freetext_color"])
-                    text_item.set_font_properties(family=self.editor_props["freetext_font_family"], size=self.editor_props["freetext_font_size"], bold=self.editor_props.get("freetext_font_bold", False), italic=self.editor_props.get("freetext_font_italic", False), underline=self.editor_props.get("freetext_font_underline", False))
-                    text_item.set_editable(True)
-                    self.scene.clearSelection()
-                    text_item.setSelected(True)
-                    text_item.setFocus()
-                    
-                    self._on_scene_selection_changed()
-                    
-                    self.save_workspace()
-                    event.accept()
-                    return
-                elif self.current_editor_tool == "textbox":
-                    if is_on_text_item:
-                        super().mousePressEvent(event)
-                        return
-                    rect = QRectF(0, 0, 150, 60)
-                    text_item = AnnotationTextBoxItem(rect, parent_page=self.active_page)
-                    text_item.setPos(self.active_page.mapFromScene(click_pos))
-                    text_item.bg_color = self.editor_props["textbox_bg_color"]
-                    text_item.border_color = self.editor_props["textbox_border_color"]
-                    text_item.text_item.setDefaultTextColor(self.editor_props["textbox_color"])
-                    text_item.set_font_properties(family=self.editor_props["textbox_font_family"], size=self.editor_props["textbox_font_size"], bold=self.editor_props.get("textbox_font_bold", False), italic=self.editor_props.get("textbox_font_italic", False), underline=self.editor_props.get("textbox_font_underline", False), align_h=self.editor_props["textbox_align_h"], align_v=self.editor_props["textbox_align_v"], wrap=self.editor_props["textbox_wrap"])
-                    text_item.set_editable(True)
-                    self.scene.clearSelection()
-                    text_item.setSelected(True)
-                    text_item.setFocus()
-                    
-                    self._on_scene_selection_changed()
-                    
-                    self.save_workspace()
-                    event.accept()
-                    return
-                elif self.current_editor_tool in ["marker", "highlighter"]:
-                    self._current_drawing_path = AnnotationPathItem(parent_page=self.active_page)
-                    is_hl = (self.current_editor_tool == "highlighter")
-                    self._current_drawing_path.is_highlighter = is_hl
-                    self._current_drawing_path.color = self.editor_props[f"{self.current_editor_tool}_color"]
-                    self._current_drawing_path.thickness = self.editor_props[f"{self.current_editor_tool}_thickness"]
-                    self._current_drawing_path.add_point(self.active_page.mapFromScene(click_pos))
-                    self._current_drawing_path.set_editable(True)
-                    event.accept()
-                    return
-                elif self.current_editor_tool == "signature":
-                    sig_path = self.editor_props.get("signature_path")
-                    sig_scale = self.editor_props.get("signature_scale", 20) / 100.0 
-                    
-                    if sig_path and os.path.exists(sig_path):
-                        # Prima switchiamo lo strumento (cursor diventa Arrow),
-                        # poi piazziamo la firma: così Qt registra Arrow come cursore
-                        # di sfondo e non il cursore firma.
-                        self.editor_toolbar.set_active_tool("select")
-                        _page = self.active_page
-                        _pos  = click_pos
-                        def _place_sig(page=_page, pos=_pos, path=sig_path, scale=sig_scale):
-                            sig_item = self.add_image_to_page(path, page, drop_pos=pos)
-                            if sig_item:
-                                sig_item.is_signature = True
-                                sig_item.export_mode = "raster"
-                                sig_item.scale_x = scale
-                                sig_item.scale_y = scale
-                                sig_item.apply_transform(False)
-                                lp = page.mapFromScene(pos)
-                                ws = sig_item.pixmap().width() * scale
-                                hs = sig_item.pixmap().height() * scale
-                                sig_item.setPos(lp.x() - ws / 2, lp.y() - hs / 2)
-                                self.save_workspace()
-                        QTimer.singleShot(50, _place_sig)
-                    else:
-                        self.show_toast("Nessuna firma configurata o file mancante.")
-                    event.accept()
-                    return
-        
-        if event.button() == Qt.MouseButton.RightButton:
-            if self.is_editing_mode: 
+        if self.is_editing_mode:
+            if event.button() == Qt.MouseButton.LeftButton:
+                # Gestione Tool personalizzati
+                if self.current_editor_tool != "select":
+                    if page_clicked == self.active_page:
+                        is_on_text_item = False
+                        curr_t = item
+                        while curr_t and curr_t != self.active_page:
+                            if isinstance(curr_t, (AnnotationFreeTextItem, AnnotationTextBoxItem)):
+                                is_on_text_item = True
+                                break
+                            curr_t = curr_t.parentItem()
+                            
+                        if self.current_editor_tool == "freetext":
+                            if is_on_text_item:
+                                super().mousePressEvent(event)
+                                return
+                            text_item = AnnotationFreeTextItem(parent_page=self.active_page)
+                            text_item.setPos(self.active_page.mapFromScene(click_pos))
+                            text_item.bg_color = self.editor_props["freetext_bg_color"]
+                            text_item.border_color = self.editor_props["freetext_border_color"]
+                            text_item.setDefaultTextColor(self.editor_props["freetext_color"])
+                            text_item.set_font_properties(family=self.editor_props["freetext_font_family"], size=self.editor_props["freetext_font_size"], bold=self.editor_props.get("freetext_font_bold", False), italic=self.editor_props.get("freetext_font_italic", False), underline=self.editor_props.get("freetext_font_underline", False))
+                            text_item.set_editable(True)
+                            self.scene.clearSelection()
+                            text_item.setSelected(True)
+                            text_item.setFocus()
+                            
+                            self._on_scene_selection_changed()
+                            self.save_workspace()
+                            event.accept()
+                            return
+                            
+                        elif self.current_editor_tool == "textbox":
+                            if is_on_text_item:
+                                super().mousePressEvent(event)
+                                return
+                            rect = QRectF(0, 0, 150, 60)
+                            text_item = AnnotationTextBoxItem(rect, parent_page=self.active_page)
+                            text_item.setPos(self.active_page.mapFromScene(click_pos))
+                            text_item.bg_color = self.editor_props["textbox_bg_color"]
+                            text_item.border_color = self.editor_props["textbox_border_color"]
+                            text_item.text_item.setDefaultTextColor(self.editor_props["textbox_color"])
+                            text_item.set_font_properties(family=self.editor_props["textbox_font_family"], size=self.editor_props["textbox_font_size"], bold=self.editor_props.get("textbox_font_bold", False), italic=self.editor_props.get("textbox_font_italic", False), underline=self.editor_props.get("textbox_font_underline", False), align_h=self.editor_props["textbox_align_h"], align_v=self.editor_props["textbox_align_v"], wrap=self.editor_props["textbox_wrap"])
+                            text_item.set_editable(True)
+                            self.scene.clearSelection()
+                            text_item.setSelected(True)
+                            text_item.setFocus()
+                            
+                            self._on_scene_selection_changed()
+                            self.save_workspace()
+                            event.accept()
+                            return
+                            
+                        elif self.current_editor_tool in ["marker", "highlighter"]:
+                            self._current_drawing_path = AnnotationPathItem(parent_page=self.active_page)
+                            is_hl = (self.current_editor_tool == "highlighter")
+                            self._current_drawing_path.is_highlighter = is_hl
+                            self._current_drawing_path.color = self.editor_props[f"{self.current_editor_tool}_color"]
+                            self._current_drawing_path.thickness = self.editor_props[f"{self.current_editor_tool}_thickness"]
+                            self._current_drawing_path.add_point(self.active_page.mapFromScene(click_pos))
+                            self._current_drawing_path.set_editable(True)
+                            event.accept()
+                            return
+                            
+                        elif self.current_editor_tool == "signature":
+                            sig_path = self.editor_props.get("signature_path")
+                            sig_scale = self.editor_props.get("signature_scale", 20) / 100.0 
+                            
+                            if sig_path and os.path.exists(sig_path):
+                                self.editor_toolbar.set_active_tool("select")
+                                _page = self.active_page
+                                _pos  = click_pos
+                                def _place_sig(page=_page, pos=_pos, path=sig_path, scale=sig_scale):
+                                    sig_item = self.add_image_to_page(path, page, drop_pos=pos)
+                                    if sig_item:
+                                        sig_item.is_signature = True
+                                        sig_item.export_mode = "raster"
+                                        sig_item.scale_x = scale
+                                        sig_item.scale_y = scale
+                                        sig_item.apply_transform(False)
+                                        lp = page.mapFromScene(pos)
+                                        ws = sig_item.pixmap().width() * scale
+                                        hs = sig_item.pixmap().height() * scale
+                                        sig_item.setPos(lp.x() - ws / 2, lp.y() - hs / 2)
+                                        self.save_workspace()
+                                QTimer.singleShot(50, _place_sig)
+                            else:
+                                self.show_toast("Nessuna firma configurata o file mancante.")
+                            event.accept()
+                            return
+
+                # Se siamo qui, stiamo usando il tool Select o cliccando fuori.
+                # Inoltriamo l'evento a Qt per la gestione automatica di selezione/trascinamento
                 super().mousePressEvent(event)
-            else: 
+                
+                # Ora valutiamo se l'utente ha "acchiappato" qualcosa che era selezionato
+                selected = [i for i in self.scene.selectedItems() if getattr(i, 'is_editable', False)]
+                
+                # FIX DUPLICAZIONE TESTI: se clicchiamo esattamente sul testo (figlio), risaliamo al contenitore padre
+                eff_item = item
+                while eff_item and not getattr(eff_item, 'is_editable', False):
+                    eff_item = eff_item.parentItem()
+                    
+                if selected and (item in selected or eff_item in selected):
+                    self._is_dragging_items = True
+                    # FIX: Usiamo pos() per coordinate locali, non scenePos()!
+                    self._drag_initial_positions = {i: i.pos() for i in selected}
+                
+                # RETURN OBBLIGATORIO per non finire nel blocco di selezione delle pagine o nel super() finale!
+                return
+                
+            elif event.button() == Qt.MouseButton.RightButton:
+                super().mousePressEvent(event)
+                return
+                
+        else:
+            # NON SIAMO IN MODALITÀ EDITING
+            if event.button() == Qt.MouseButton.RightButton:
                 event.accept()
-            return
-            
-        if not self.is_editing_mode and event.button() == Qt.MouseButton.LeftButton:
-            modifiers = QApplication.keyboardModifiers()
-            if page_clicked:
-                if page_clicked in self.selected_pages and not modifiers: 
-                    self._internal_drag_active = True
-                    self._drag_start_pos = event.pos()
+                return
+                
+            if event.button() == Qt.MouseButton.LeftButton:
+                modifiers = QApplication.keyboardModifiers()
+                if page_clicked:
+                    if page_clicked in self.selected_pages and not modifiers: 
+                        self._internal_drag_active = True
+                        self._drag_start_pos = event.pos()
+                    else:
+                        self._internal_drag_active = False
+                        if modifiers & Qt.KeyboardModifier.ShiftModifier and self.last_selected_page in self.pages:
+                            idx1 = self.pages.index(self.last_selected_page)
+                            idx2 = self.pages.index(page_clicked)
+                            self.clear_selection()
+                            for i in range(min(idx1, idx2), max(idx1, idx2) + 1):
+                                p = self.pages[i]
+                                self.selected_pages.append(p)
+                                p.is_selected = True
+                                p.update()
+                            self.emit_selection_status()
+                        elif modifiers & Qt.KeyboardModifier.ControlModifier: 
+                            self.toggle_page_selection(page_clicked)
+                            self.last_selected_page = page_clicked
+                        else: 
+                            self.select_single_page(page_clicked)
+                            self.last_selected_page = page_clicked
                 else:
                     self._internal_drag_active = False
-                    if modifiers & Qt.KeyboardModifier.ShiftModifier and self.last_selected_page in self.pages:
-                        idx1 = self.pages.index(self.last_selected_page)
-                        idx2 = self.pages.index(page_clicked)
+                    if not (modifiers & Qt.KeyboardModifier.ControlModifier): 
                         self.clear_selection()
-                        for i in range(min(idx1, idx2), max(idx1, idx2) + 1):
-                            p = self.pages[i]
-                            self.selected_pages.append(p)
-                            p.is_selected = True
-                            p.update()
-                        self.emit_selection_status()
-                    elif modifiers & Qt.KeyboardModifier.ControlModifier: 
-                        self.toggle_page_selection(page_clicked)
-                        self.last_selected_page = page_clicked
-                    else: 
-                        self.select_single_page(page_clicked)
-                        self.last_selected_page = page_clicked
-            else:
-                self._internal_drag_active = False
-                if not (modifiers & Qt.KeyboardModifier.ControlModifier): 
-                    self.clear_selection()
-                    self.last_selected_page = None
-                    
+                        self.last_selected_page = None
+
+        # Questo super() verrà eseguito SOLAMENTE se NON eravamo in is_editing_mode, 
+        # garantendo che l'evento non venga scatenato due volte.
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        self._ctrl_pressed = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.buttons() & Qt.MouseButton.MiddleButton:
             if "Mano" in self.middle_click_mode:
                 fake = QMouseEvent(event.type(), event.position(), event.globalPosition(), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, event.modifiers())
@@ -1702,6 +1822,9 @@ class CanvasEditor(QGraphicsView):
             self._current_drawing_path.add_point(self.active_page.mapFromScene(click_pos))
             event.accept()
             return
+        
+        if self._is_dragging_items:
+            self.viewport().update() # Forza il ridisegno dei fantasmi
             
         if self._internal_drag_active and self.selected_pages and event.buttons() & Qt.MouseButton.LeftButton:
             if (event.pos() - self._drag_start_pos).manhattanLength() > 10:
@@ -1721,6 +1844,7 @@ class CanvasEditor(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        self._ctrl_pressed = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.button() == Qt.MouseButton.MiddleButton:
             if "Mano" in self.middle_click_mode: 
                 # ---- FIX BUG PANNING: Il Rilascio Fantasma ----
@@ -1741,6 +1865,28 @@ class CanvasEditor(QGraphicsView):
                 self.unsetCursor()
             event.accept()
             return
+        
+        if self._is_dragging_items:
+            if self._ctrl_pressed:
+                # 1. Serializziamo gli oggetti NELLA LORO NUOVA POSIZIONE
+                clones_data = [self._serialize_item(i) for i in self._drag_initial_positions.keys()]
+                
+                # 2. Riportiamo gli originali al punto di partenza
+                for i, orig_pos in self._drag_initial_positions.items():
+                    i.setPos(orig_pos)
+                
+                # 3. Creiamo i cloni nel punto di rilascio
+                self.scene.clearSelection()
+                for data in clones_data:
+                    new_item = self._deserialize_item(data, self.active_page, 0, 0)
+                    if new_item:
+                        new_item.set_editable(True)
+                        new_item.setSelected(True)
+                self.save_workspace()
+                
+            self._is_dragging_items = False
+            self._drag_initial_positions.clear()
+            self.viewport().update()
         
         if self.is_editing_mode and self._current_drawing_path:
             self._current_drawing_path = None
@@ -2261,6 +2407,147 @@ class CanvasEditor(QGraphicsView):
             self.save_workspace()
             
         return item
+
+    def action_copy(self):
+        if not self.is_editing_mode: return
+        selected = [i for i in self.scene.selectedItems() if getattr(i, 'is_editable', False)]
+        if not selected: return
+        
+        self._internal_clipboard = [self._serialize_item(item) for item in selected]
+        self._paste_counter = 0
+        self.show_toast(f"{len(selected)} elementi copiati.")
+
+    def action_paste(self):
+        if not self.is_editing_mode or not self.active_page: 
+            self.show_toast("Entra in modalità editing per incollare.")
+            return
+        if not self._internal_clipboard: 
+            return
+
+        self._paste_counter += 1
+        offset = 20 * self._paste_counter
+        self.scene.clearSelection()
+        
+        new_items = []
+        for data in self._internal_clipboard:
+            item = self._deserialize_item(data, self.active_page, offset, offset)
+            if item:
+                item.set_editable(True)
+                item.setSelected(True)
+                new_items.append(item)
+                
+        if new_items:
+            self.save_workspace()
+            self._on_scene_selection_changed()
+
+    def _serialize_item(self, item):
+        data = {"type": None}
+        if isinstance(item, EditableImageItem):
+            data.update({
+                "type": "image",
+                "source_path": item.source_path,
+                "regulated_path": getattr(item, 'regulated_path', None),
+                "corner_points": getattr(item, 'corner_points', None),
+                "orig_pdf_path": item.orig_pdf_path,
+                "orig_page_num": item.orig_page_num,
+                "is_signature": getattr(item, 'is_signature', False),
+                "x": item.x(),
+                "y": item.y(),
+                "scale_x": item.scale_x,
+                "scale_y": item.scale_y,
+                "rotation": item.rotation_angle,
+                "export_mode": item.export_mode
+            })
+        elif isinstance(item, AnnotationFreeTextItem):
+            data.update({
+                "type": "freetext",
+                "x": item.x(), "y": item.y(),
+                "text": item.toPlainText(),
+                "bg_color": item.bg_color.name(QColor.NameFormat.HexArgb),
+                "border_color": item.border_color.name(QColor.NameFormat.HexArgb),
+                "text_color": item.defaultTextColor().name(QColor.NameFormat.HexArgb),
+                "font_family": item.font().family(),
+                "font_size": item.font().pointSize(),
+                "font_bold": item.font().bold(),
+                "font_italic": item.font().italic(),
+                "font_underline": item.font().underline()
+            })
+        elif isinstance(item, AnnotationTextBoxItem):
+            data.update({
+                "type": "textbox",
+                "x": item.x(), "y": item.y(),
+                "width": item.rect().width(), "height": item.rect().height(),
+                "text": item.text_item.toPlainText(),
+                "bg_color": item.bg_color.name(QColor.NameFormat.HexArgb),
+                "border_color": item.border_color.name(QColor.NameFormat.HexArgb),
+                "text_color": item.text_item.defaultTextColor().name(QColor.NameFormat.HexArgb),
+                "font_family": item.text_item.font().family(),
+                "font_size": item.text_item.font().pointSize(),
+                "font_bold": item.text_item.font().bold(),
+                "font_italic": item.text_item.font().italic(),
+                "font_underline": item.text_item.font().underline(),
+                "align_h": item.align_h, "align_v": item.align_v, "wrap": item.wrap
+            })
+        elif isinstance(item, AnnotationPathItem):
+            data.update({
+                "type": "path",
+                "x": item.x(), "y": item.y(),
+                "color": item.color.name(QColor.NameFormat.HexArgb),
+                "thickness": item.thickness,
+                "is_highlighter": item.is_highlighter,
+                "points": [{"x": pt.x(), "y": pt.y()} for pt in item.points]
+            })
+        return data
+
+    def _deserialize_item(self, data, page, offset_x=0, offset_y=0):
+        itype = data.get("type")
+        new_x = data.get("x", 0) + offset_x
+        new_y = data.get("y", 0) + offset_y
+        
+        if itype == "image":
+            path_to_load = data.get("regulated_path") if data.get("regulated_path") and os.path.exists(data.get("regulated_path")) else data.get("source_path")
+            if os.path.exists(path_to_load):
+                rd = QImageReader(path_to_load)
+                rd.setAutoTransform(True)
+                img = rd.read()
+                if not img.isNull():
+                    i = EditableImageItem(QPixmap.fromImage(img), page, data.get("source_path"), data.get("orig_pdf_path"), data.get("orig_page_num"), data.get("regulated_path"), data.get("corner_points"))
+                    i.rotation_angle = data.get("rotation", 0.0)
+                    i.scale_x = data.get("scale_x", 1.0)
+                    i.scale_y = data.get("scale_y", 1.0)
+                    i.is_signature = data.get("is_signature", False)
+                    i.export_mode = data.get("export_mode", "raster")
+                    i.apply_transform(False)
+                    i.setPos(new_x, new_y)
+                    return i
+        elif itype == "freetext":
+            i = AnnotationFreeTextItem(text=data.get("text", ""), parent_page=page)
+            i.setPos(new_x, new_y)
+            i.bg_color = QColor(data.get("bg_color"))
+            i.border_color = QColor(data.get("border_color"))
+            i.setDefaultTextColor(QColor(data.get("text_color")))
+            i.set_font_properties(family=data.get("font_family"), size=data.get("font_size"), bold=data.get("font_bold"), italic=data.get("font_italic"), underline=data.get("font_underline"))
+            return i
+        elif itype == "textbox":
+            i = AnnotationTextBoxItem(QRectF(0, 0, data.get("width", 150), data.get("height", 60)), parent_page=page)
+            i.setPos(new_x, new_y)
+            i.text_item.setPlainText(data.get("text", ""))
+            i.bg_color = QColor(data.get("bg_color"))
+            i.border_color = QColor(data.get("border_color"))
+            i.text_item.setDefaultTextColor(QColor(data.get("text_color")))
+            i.set_font_properties(family=data.get("font_family"), size=data.get("font_size"), bold=data.get("font_bold"), italic=data.get("font_italic"), underline=data.get("font_underline"), align_h=data.get("align_h"), align_v=data.get("align_v"), wrap=data.get("wrap"))
+            return i
+        elif itype == "path":
+            i = AnnotationPathItem(parent_page=page)
+            i.setPos(new_x, new_y)
+            i.color = QColor(data.get("color"))
+            i.thickness = data.get("thickness", 2)
+            i.is_highlighter = data.get("is_highlighter", False)
+            for pt in data.get("points", []):
+                i.add_point(QPointF(pt["x"], pt["y"]))
+            i.update_pen()
+            return i
+        return None
 
     def save_workspace(self):
         state = {"pages": []}

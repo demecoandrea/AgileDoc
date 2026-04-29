@@ -235,8 +235,22 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         if not self.isSelected():
             self.scene().clearSelection()
             self.setSelected(True)
+            
         menu = QMenu()
         menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+        
+        canvas_view = self.scene().views()[0] if self.scene() and self.scene().views() else None
+        if canvas_view:
+            action_copy = QAction("📄 Copia", menu)
+            action_copy.triggered.connect(canvas_view.action_copy)
+            menu.addAction(action_copy)
+            
+            action_paste = QAction("📋 Incolla", menu)
+            action_paste.setEnabled(len(canvas_view._internal_clipboard) > 0)
+            action_paste.triggered.connect(canvas_view.action_paste)
+            menu.addAction(action_paste)
+            menu.addSeparator()
+
         action_delete = QAction("🗑️ Elimina Elemento", menu)
         action_delete.triggered.connect(lambda: [self.scene().removeItem(item) for item in self.scene().selectedItems()] and (self.scene().views()[0].save_workspace() if self.scene() and self.scene().views() else None))
         menu.addAction(action_delete)
@@ -463,6 +477,18 @@ class AnnotationPathItem(QGraphicsPathItem):
             
         menu = QMenu()
         menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+        
+        canvas_view = self.scene().views()[0] if self.scene() and self.scene().views() else None
+        if canvas_view:
+            action_copy = QAction("📄 Copia", menu)
+            action_copy.triggered.connect(canvas_view.action_copy)
+            menu.addAction(action_copy)
+            
+            action_paste = QAction("📋 Incolla", menu)
+            action_paste.setEnabled(len(canvas_view._internal_clipboard) > 0)
+            action_paste.triggered.connect(canvas_view.action_paste)
+            menu.addAction(action_paste)
+            menu.addSeparator()
         
         action_delete = QAction("🗑️ Elimina Disegno", menu)
         action_delete.triggered.connect(self._delete_selected)
