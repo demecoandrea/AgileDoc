@@ -1,10 +1,8 @@
 from PyQt6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsRectItem, 
-                             QMenu, QWidget,
-                             QVBoxLayout, QHBoxLayout, QPushButton, QApplication, 
-                             QMessageBox, QLabel, QFrame, QProgressDialog, QGraphicsDropShadowEffect)
+                             QMenu, QPushButton, QApplication, 
+                             QLabel, QProgressDialog, QGraphicsDropShadowEffect)
 from PyQt6.QtGui import (QColor, QBrush, QPen, QPainter, QPixmap, QTransform, QAction, QImageReader, QMouseEvent, QPainterPath)
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QTimer
-import json
 import shutil
 import uuid
 import os
@@ -16,6 +14,7 @@ from cursor_factory import create_tool_cursor
 from canvas_items import PageItem, EditableImageItem
 from pdf_exporter import PdfExporter
 from canvas_widgets import UndoSnackbar, PageOutputModeWidget, PageInfoButton, PageNumberIndicator, PageToolbar
+from workspace_manager import WorkspaceManager
 
 A4_WIDTH = 595.0
 A4_HEIGHT = 842.0
@@ -1183,7 +1182,7 @@ class CanvasEditor(QGraphicsView):
         if self._is_dragging_items:
             if self._ctrl_pressed:
                 # 1. Serializziamo gli oggetti NELLA LORO NUOVA POSIZIONE
-                clones_data = [self._serialize_item(i) for i in self._drag_initial_positions.keys()]
+                clones_data = [WorkspaceManager.serialize_item(i) for i in self._drag_initial_positions.keys()]
                 
                 # 2. Riportiamo gli originali al punto di partenza
                 for i, orig_pos in self._drag_initial_positions.items():
@@ -1192,7 +1191,7 @@ class CanvasEditor(QGraphicsView):
                 # 3. Creiamo i cloni nel punto di rilascio
                 self.scene.clearSelection()
                 for data in clones_data:
-                    new_item = self._deserialize_item(data, self.active_page, 0, 0)
+                    new_item = WorkspaceManager.deserialize_item(data, self.active_page, 0, 0)
                     if new_item:
                         new_item.set_editable(True)
                         new_item.setSelected(True)
@@ -1727,7 +1726,7 @@ class CanvasEditor(QGraphicsView):
         selected = [i for i in self.scene.selectedItems() if getattr(i, 'is_editable', False)]
         if not selected: return
         
-        self._internal_clipboard = [self._serialize_item(item) for item in selected]
+        self._internal_clipboard = [WorkspaceManager.serialize_item(item) for item in selected]
         self._paste_counter = 0
         self.show_toast(f"{len(selected)} elementi copiati.")
 
@@ -1744,7 +1743,7 @@ class CanvasEditor(QGraphicsView):
         
         new_items = []
         for data in self._internal_clipboard:
-            item = self._deserialize_item(data, self.active_page, offset, offset)
+            item = WorkspaceManager.deserialize_item(data, self.active_page, offset, offset)
             if item:
                 item.set_editable(True)
                 item.setSelected(True)
@@ -1754,260 +1753,28 @@ class CanvasEditor(QGraphicsView):
             self.save_workspace()
             self._on_scene_selection_changed()
 
-    def _serialize_item(self, item):
-        data = {"type": None}
-        if isinstance(item, EditableImageItem):
-            data.update({
-                "type": "image",
-                "source_path": item.source_path,
-                "regulated_path": getattr(item, 'regulated_path', None),
-                "corner_points": getattr(item, 'corner_points', None),
-                "orig_pdf_path": item.orig_pdf_path,
-                "orig_page_num": item.orig_page_num,
-                "is_signature": getattr(item, 'is_signature', False),
-                "x": item.x(),
-                "y": item.y(),
-                "scale_x": item.scale_x,
-                "scale_y": item.scale_y,
-                "rotation": item.rotation_angle,
-                "export_mode": item.export_mode
-            })
-        elif isinstance(item, AnnotationFreeTextItem):
-            data.update({
-                "type": "freetext",
-                "x": item.x(), "y": item.y(),
-                "text": item.toPlainText(),
-                "bg_color": item.bg_color.name(QColor.NameFormat.HexArgb),
-                "border_color": item.border_color.name(QColor.NameFormat.HexArgb),
-                "text_color": item.defaultTextColor().name(QColor.NameFormat.HexArgb),
-                "font_family": item.font().family(),
-                "font_size": item.font().pointSize(),
-                "font_bold": item.font().bold(),
-                "font_italic": item.font().italic(),
-                "font_underline": item.font().underline()
-            })
-        elif isinstance(item, AnnotationTextBoxItem):
-            data.update({
-                "type": "textbox",
-                "x": item.x(), "y": item.y(),
-                "width": item.rect().width(), "height": item.rect().height(),
-                "text": item.text_item.toPlainText(),
-                "bg_color": item.bg_color.name(QColor.NameFormat.HexArgb),
-                "border_color": item.border_color.name(QColor.NameFormat.HexArgb),
-                "text_color": item.text_item.defaultTextColor().name(QColor.NameFormat.HexArgb),
-                "font_family": item.text_item.font().family(),
-                "font_size": item.text_item.font().pointSize(),
-                "font_bold": item.text_item.font().bold(),
-                "font_italic": item.text_item.font().italic(),
-                "font_underline": item.text_item.font().underline(),
-                "align_h": item.align_h, "align_v": item.align_v, "wrap": item.wrap
-            })
-        elif isinstance(item, AnnotationPathItem):
-            data.update({
-                "type": "path",
-                "x": item.x(), "y": item.y(),
-                "color": item.color.name(QColor.NameFormat.HexArgb),
-                "thickness": item.thickness,
-                "is_highlighter": item.is_highlighter,
-                "points": [{"x": pt.x(), "y": pt.y()} for pt in item.points]
-            })
-        return data
-
-    def _deserialize_item(self, data, page, offset_x=0, offset_y=0):
-        itype = data.get("type")
-        new_x = data.get("x", 0) + offset_x
-        new_y = data.get("y", 0) + offset_y
-        
-        if itype == "image":
-            path_to_load = data.get("regulated_path") if data.get("regulated_path") and os.path.exists(data.get("regulated_path")) else data.get("source_path")
-            if os.path.exists(path_to_load):
-                rd = QImageReader(path_to_load)
-                rd.setAutoTransform(True)
-                img = rd.read()
-                if not img.isNull():
-                    i = EditableImageItem(QPixmap.fromImage(img), page, data.get("source_path"), data.get("orig_pdf_path"), data.get("orig_page_num"), data.get("regulated_path"), data.get("corner_points"))
-                    i.rotation_angle = data.get("rotation", 0.0)
-                    i.scale_x = data.get("scale_x", 1.0)
-                    i.scale_y = data.get("scale_y", 1.0)
-                    i.is_signature = data.get("is_signature", False)
-                    i.export_mode = data.get("export_mode", "raster")
-                    i.apply_transform(False)
-                    i.setPos(new_x, new_y)
-                    return i
-        elif itype == "freetext":
-            i = AnnotationFreeTextItem(text=data.get("text", ""), parent_page=page)
-            i.setPos(new_x, new_y)
-            i.bg_color = QColor(data.get("bg_color"))
-            i.border_color = QColor(data.get("border_color"))
-            i.setDefaultTextColor(QColor(data.get("text_color")))
-            i.set_font_properties(family=data.get("font_family"), size=data.get("font_size"), bold=data.get("font_bold"), italic=data.get("font_italic"), underline=data.get("font_underline"))
-            return i
-        elif itype == "textbox":
-            i = AnnotationTextBoxItem(QRectF(0, 0, data.get("width", 150), data.get("height", 60)), parent_page=page)
-            i.setPos(new_x, new_y)
-            i.text_item.setPlainText(data.get("text", ""))
-            i.bg_color = QColor(data.get("bg_color"))
-            i.border_color = QColor(data.get("border_color"))
-            i.text_item.setDefaultTextColor(QColor(data.get("text_color")))
-            i.set_font_properties(family=data.get("font_family"), size=data.get("font_size"), bold=data.get("font_bold"), italic=data.get("font_italic"), underline=data.get("font_underline"), align_h=data.get("align_h"), align_v=data.get("align_v"), wrap=data.get("wrap"))
-            return i
-        elif itype == "path":
-            i = AnnotationPathItem(parent_page=page)
-            i.setPos(new_x, new_y)
-            i.color = QColor(data.get("color"))
-            i.thickness = data.get("thickness", 2)
-            i.is_highlighter = data.get("is_highlighter", False)
-            for pt in data.get("points", []):
-                i.add_point(QPointF(pt["x"], pt["y"]))
-            i.update_pen()
-            return i
-        return None
-
     def save_workspace(self):
-        state = {"pages": []}
-        for p in self.pages:
-            pd = {
-                "is_landscape": p.is_landscape, 
-                "items": []
-            }
-            for i in p.childItems():
-                if isinstance(i, EditableImageItem):
-                    pd["items"].append({
-                        "type": "image",
-                        "source_path": i.source_path, 
-                        "regulated_path": getattr(i, 'regulated_path', None),
-                        "corner_points": getattr(i, 'corner_points', None),
-                        "orig_pdf_path": i.orig_pdf_path, 
-                        "orig_page_num": i.orig_page_num, 
-                        "is_signature": getattr(i, 'is_signature', False),
-                        "x": i.x(), 
-                        "y": i.y(), 
-                        "scale_x": i.scale_x, 
-                        "scale_y": i.scale_y, 
-                        "rotation": i.rotation_angle, 
-                        "export_mode": i.export_mode
-                    })
-                elif isinstance(i, AnnotationFreeTextItem):
-                    pd["items"].append({
-                        "type": "freetext",
-                        "x": i.x(),
-                        "y": i.y(),
-                        "text": i.toPlainText(),
-                        "bg_color": i.bg_color.name(QColor.NameFormat.HexArgb),
-                        "border_color": i.border_color.name(QColor.NameFormat.HexArgb),
-                        "text_color": i.defaultTextColor().name(QColor.NameFormat.HexArgb),
-                        "font_family": i.font().family(),
-                        "font_size": i.font().pointSize(),
-                        "font_bold": i.font().bold(),
-                        "font_italic": i.font().italic(),
-                        "font_underline": i.font().underline()
-                    })
-                elif isinstance(i, AnnotationTextBoxItem):
-                    pd["items"].append({
-                        "type": "textbox",
-                        "x": i.x(),
-                        "y": i.y(),
-                        "width": i.rect().width(),
-                        "height": i.rect().height(),
-                        "text": i.text_item.toPlainText(),
-                        "bg_color": i.bg_color.name(QColor.NameFormat.HexArgb),
-                        "border_color": i.border_color.name(QColor.NameFormat.HexArgb),
-                        "text_color": i.text_item.defaultTextColor().name(QColor.NameFormat.HexArgb),
-                        "font_family": i.text_item.font().family(),
-                        "font_size": i.text_item.font().pointSize(),
-                        "font_bold": i.text_item.font().bold(),
-                        "font_italic": i.text_item.font().italic(),
-                        "font_underline": i.text_item.font().underline(),
-                        "align_h": i.align_h,
-                        "align_v": i.align_v,
-                        "wrap": i.wrap
-                    })
-                elif isinstance(i, AnnotationPathItem):
-                    points = [{"x": pt.x(), "y": pt.y()} for pt in i.points]
-                    pd["items"].append({
-                        "type": "path",
-                        "x": i.x(),
-                        "y": i.y(),
-                        "color": i.color.name(QColor.NameFormat.HexArgb),
-                        "thickness": i.thickness,
-                        "is_highlighter": i.is_highlighter,
-                        "points": points
-                    })
-            state["pages"].append(pd)
-            
-        try:
-            with open(self.state_file + ".tmp", "w", encoding="utf-8") as f: 
-                json.dump(state, f, indent=4)
-            os.replace(self.state_file + ".tmp", self.state_file)
+        if WorkspaceManager.save_to_file(self.pages, self.state_file):
             self.workspace_changed.emit()
-        except: 
-            pass
 
     def load_workspace(self):
-        if not os.path.exists(self.state_file): 
+        state = WorkspaceManager.load_from_file(self.state_file)
+        if not state: 
             return
             
         try:
-            with open(self.state_file, "r", encoding="utf-8") as f: 
-                state = json.load(f)
-                
             for pd in state.get("pages", []):
                 p = self.add_page_at(auto_save=False, is_landscape=pd.get("is_landscape", False))
-                for id in pd.get("items", []):
-                    itype = id.get("type", "image")
+                for item_data in pd.get("items", []):
+                    # Ricrea l'oggetto e lo appiccica alla pagina
+                    WorkspaceManager.deserialize_item(item_data, p)
                     
-                    if itype == "image":
-                        source_path = id["source_path"]
-                        regulated_path = id.get("regulated_path")
-                        corner_points = id.get("corner_points")
-                        
-                        path_to_load = regulated_path if regulated_path and os.path.exists(regulated_path) else source_path
-                        
-                        if os.path.exists(path_to_load):
-                            rd = QImageReader(path_to_load)
-                            rd.setAutoTransform(True)
-                            img = rd.read()
-                            if not img.isNull():
-                                i = EditableImageItem(QPixmap.fromImage(img), p, source_path, id.get("orig_pdf_path"), id.get("orig_page_num"), regulated_path, corner_points)
-                                i.rotation_angle = id.get("rotation", 0.0)
-                                i.scale_x = id.get("scale_x", 1.0)
-                                i.scale_y = id.get("scale_y", 1.0)
-                                i.is_signature = id.get("is_signature", False)
-                                i.export_mode = id.get("export_mode", "native" if i.orig_pdf_path else "raster")
-                                i.apply_transform(False)
-                                i.setPos(id.get("x", 0.0), id.get("y", 0.0))
-                    elif itype in ["text", "freetext"]:
-                        i = AnnotationFreeTextItem(text=id.get("text", ""), parent_page=p)
-                        i.setPos(id.get("x", 0.0), id.get("y", 0.0))
-                        i.bg_color = QColor(id.get("bg_color", "#00ffffff"))
-                        i.border_color = QColor(id.get("border_color", "#00000000"))
-                        i.setDefaultTextColor(QColor(id.get("text_color", "#ff000000")))
-                        i.set_font_properties(family=id.get("font_family", "Helvetica"), size=id.get("font_size", 12), bold=id.get("font_bold", False), italic=id.get("font_italic", False), underline=id.get("font_underline", False))
-                    elif itype == "textbox":
-                        w = id.get("width", 150)
-                        h = id.get("height", 60)
-                        i = AnnotationTextBoxItem(QRectF(0, 0, w, h), parent_page=p)
-                        i.setPos(id.get("x", 0.0), id.get("y", 0.0))
-                        i.text_item.setPlainText(id.get("text", ""))
-                        i.bg_color = QColor(id.get("bg_color", "#dcdcdc"))
-                        i.border_color = QColor(id.get("border_color", "#000000"))
-                        i.text_item.setDefaultTextColor(QColor(id.get("text_color", "#000000")))
-                        i.set_font_properties(family=id.get("font_family", "Helvetica"), size=id.get("font_size", 12), bold=id.get("font_bold", False), italic=id.get("font_italic", False), underline=id.get("font_underline", False), align_h=id.get("align_h", "Sinistra"), align_v=id.get("align_v", "Alto"), wrap=id.get("wrap", True))
-                    elif itype == "path":
-                        i = AnnotationPathItem(parent_page=p)
-                        i.setPos(id.get("x", 0.0), id.get("y", 0.0))
-                        i.color = QColor(id.get("color", "#ff000000"))
-                        i.thickness = id.get("thickness", 2)
-                        i.is_highlighter = id.get("is_highlighter", False)
-                        for pt in id.get("points", []):
-                            i.add_point(QPointF(pt["x"], pt["y"]))
-                            
             self.refresh_layout()
             if self.pages: 
                 self.select_single_page(self.pages[0])
                 self.last_selected_page = self.pages[0]
-        except: 
-            pass
+        except Exception as e: 
+            print(f"Errore ricostruzione workspace: {e}")
 
     def export_to_pdf(self, file_path, dpi=150, flatten_annotations=True):
         # Deleghiamo tutto il lavoro duro alla nostra nuova classe dedicata
