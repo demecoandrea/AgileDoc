@@ -15,6 +15,7 @@ from canvas_items import PageItem, EditableImageItem
 from pdf_exporter import PdfExporter
 from canvas_widgets import UndoSnackbar, PageOutputModeWidget, PageInfoButton, PageNumberIndicator, PageToolbar
 from workspace_manager import WorkspaceManager
+from file_importer import FileImporter
 
 A4_WIDTH = 595.0
 A4_HEIGHT = 842.0
@@ -1490,93 +1491,12 @@ class CanvasEditor(QGraphicsView):
         self.drop_indicator.hide()
         self.drag_overlay.hide()
         super().dragLeaveEvent(event)
-        
-    def _process_dropped_files(self, urls, target_idx=None):
-        tasks = []
-        image_paths_for_adjustment = []
-        steps = 0
-        for url in urls:
-            fp = url.toLocalFile()
-            if not os.path.exists(fp): 
-                continue
-            ext = os.path.splitext(fp)[1].lower()
-            if ext in ['.jpg', '.jpeg', '.png']:
-                if self.advanced_adjustment_enabled:
-                    image_paths_for_adjustment.append(fp)
-                else:
-                    tasks.append(('image', fp))
-                    steps += 1
-            elif ext == '.pdf':
-                try: 
-                    doc = fitz.open(fp)
-                    tasks.append(('pdf', (fp, doc)))
-                    steps += len(doc)
-                except: 
-                    pass
 
-        if image_paths_for_adjustment:
-            t_idx = target_idx if target_idx is not None else len(self.pages)
-            self.advanced_adjustment_requested.emit(image_paths_for_adjustment, t_idx)
-                    
-        if steps == 0: 
-            return
-            
-        prog = QProgressDialog("Estrazione pagine in corso...", "Annulla", 0, steps, self)
-        prog.setWindowTitle("Importazione File")
-        prog.setWindowModality(Qt.WindowModality.WindowModal)
-        prog.setMinimumDuration(300) 
-        prog.setValue(0)
-        
-        added = []
-        curr_idx = target_idx if target_idx is not None else len(self.pages)
-        curr_step = 0
-        
-        for ttype, tdata in tasks:
-            if prog.wasCanceled(): 
-                break
-                
-            if ttype == 'image':
-                p = self.add_page_at(index=curr_idx, auto_save=False)
-                added.append(p)
-                self.add_image_to_page(tdata, p, center=True, auto_save=False)
-                
-                if target_idx is not None: 
-                    curr_idx += 1
-                curr_step += 1
-                prog.setValue(curr_step)
-                QApplication.processEvents() 
-                
-            elif ttype == 'pdf':
-                fp, doc = tdata
-                for pnum in range(len(doc)):
-                    if prog.wasCanceled(): 
-                        break
-                        
-                    pdfp = doc.load_page(pnum)
-                    pix = pdfp.get_pixmap(dpi=200)
-                    lpath = os.path.join(self.img_dir, f"pdf_ext_{uuid.uuid4().hex}.png")
-                    pix.save(lpath)
-                    
-                    p = self.add_page_at(index=curr_idx, auto_save=False, is_landscape=pdfp.rect.width > pdfp.rect.height)
-                    added.append(p)
-                    self.add_image_to_page(lpath, p, center=True, auto_save=False, orig_pdf_path=fp, orig_page_num=pnum)
-                    
-                    if target_idx is not None: 
-                        curr_idx += 1
-                    curr_step += 1
-                    prog.setValue(curr_step)
-                    QApplication.processEvents() 
-                doc.close()
-                
-        prog.setValue(steps)
-        if added: 
-            self.clear_selection()
-            for p in added:
-                self.selected_pages.append(p)
-                p.update()
-            self.last_selected_page = added[0]
-            self.emit_selection_status()
-            self.setFocus() 
+    def _process_dropped_files(self, urls, target_idx=None):
+        FileImporter.process_dropped_files(self, urls, target_idx)
+
+    def handle_external_image(self, fp):
+        FileImporter.handle_external_image(self, fp)
 
     def dropEvent(self, event):
         self._commit_deletion()
@@ -1601,30 +1521,6 @@ class CanvasEditor(QGraphicsView):
             
         self.save_workspace()
         event.accept()
-    
-    def handle_external_image(self, fp):
-        self._commit_deletion()
-        if not os.path.exists(fp): 
-            return
-
-        ext = os.path.splitext(fp)[1] or ".jpg"
-        lpath = os.path.join(self.img_dir, f"src_{uuid.uuid4().hex}{ext}")
-        shutil.copy2(fp, lpath)
-        try:
-            os.remove(fp)
-        except:
-            pass
-
-        if self.advanced_adjustment_enabled:
-            self.advanced_adjustment_requested.emit([lpath], len(self.pages))
-            return
-            
-        p = self.add_page(auto_save=False)
-        self.add_image_to_page(lpath, p, center=True, auto_save=True)
-        self.ensureVisible(p, 50, 50)
-        self.select_single_page(p)
-        self.last_selected_page = p
-        self.setFocus() 
 
     def add_adjusted_images(self, pairs, target_idx=None):
         self._commit_deletion()
