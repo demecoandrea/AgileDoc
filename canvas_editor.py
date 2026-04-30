@@ -14,6 +14,7 @@ import fitz # PyMuPDF
 
 from editor_toolbar import EditorToolbar
 from pdf_annotations import AnnotationFreeTextItem, AnnotationTextBoxItem, AnnotationPathItem
+from cursor_factory import create_tool_cursor
 
 A4_WIDTH = 595.0
 A4_HEIGHT = 842.0
@@ -803,100 +804,12 @@ class CanvasEditor(QGraphicsView):
         self.viewport().update()
 
     def _update_cursor_for_tool(self, tool_id):
-        # Helper interno per creare un cursore con badge di testo o icona dinamica
-        def create_badge_cursor(badge_text, bg_color, is_marker=False, is_chisel=False):
-            pix = QPixmap(64, 64)
-            pix.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(pix)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            
-            hotspot_x, hotspot_y = 0, 0
-            center = 32
-
-            if is_marker:
-                thickness = self.editor_props.get("marker_thickness", 2)
-                m_color = self.editor_props.get("marker_color", QColor(0,0,0))
-                visual_size = max(4, thickness * (self.current_zoom / 100.0))
-                
-                # Disegniamo il Crosshair fisso
-                painter.setPen(QPen(QColor(150, 150, 150, 200), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-                gap = (visual_size / 2) + 3
-                line_len = 6
-                painter.drawLine(QPointF(center, center - gap), QPointF(center, center - gap - line_len)) # Su
-                painter.drawLine(QPointF(center, center + gap), QPointF(center, center + gap + line_len)) # Giù
-                painter.drawLine(QPointF(center - gap, center), QPointF(center - gap - line_len, center)) # Sinistra
-                painter.drawLine(QPointF(center + gap, center), QPointF(center + gap + line_len, center)) # Destra
-
-                # Pallino centrale col colore scelto
-                rect = QRectF(center - visual_size/2, center - visual_size/2, visual_size, visual_size)
-                # Bordo a contrasto per visibilità
-                border_color = Qt.GlobalColor.white if m_color.lightness() < 128 else Qt.GlobalColor.black
-                painter.setPen(QPen(border_color, 1))
-                painter.setBrush(QBrush(m_color))
-                painter.drawEllipse(rect)
-                hotspot_x, hotspot_y = center, center
-
-            elif is_chisel:
-                thickness = self.editor_props.get("highlighter_thickness", 10)
-                h_color = self.editor_props.get("highlighter_color", QColor(255, 255, 0))
-                visual_w = max(2, thickness * (self.current_zoom / 100.0) * 0.3)
-                visual_h = max(10, thickness * (self.current_zoom / 100.0))
-                
-                rect = QRectF(center - visual_w/2, center - visual_h/2, visual_w, visual_h)
-                border_color = Qt.GlobalColor.white if h_color.lightness() < 128 else Qt.GlobalColor.black
-                painter.setPen(QPen(border_color, 1))
-                
-                # Colore pieno nel cursore per visibilità
-                c = QColor(h_color)
-                c.setAlpha(255)
-                painter.setBrush(QBrush(c))
-                painter.drawRect(rect)
-                hotspot_x, hotspot_y = center, center
-
-            else:
-                # Cursore con badge + Freccia
-                painter.setPen(QPen(Qt.GlobalColor.white, 2))
-                painter.setBrush(QBrush(Qt.GlobalColor.black))
-                arrow_poly = QPainterPath()
-                arrow_poly.moveTo(0, 0); arrow_poly.lineTo(0, 16); arrow_poly.lineTo(4, 12)
-                arrow_poly.lineTo(8, 20); arrow_poly.lineTo(11, 18); arrow_poly.lineTo(7, 11)
-                arrow_poly.lineTo(12, 11); arrow_poly.closeSubpath()
-                painter.drawPath(arrow_poly)
-                
-                font = painter.font()
-                font.setPixelSize(10); font.setBold(True); painter.setFont(font)
-                fm = painter.fontMetrics()
-                tw = fm.horizontalAdvance(badge_text)
-                th = fm.height()
-                badge_rect = QRectF(12, 18, tw + 6, th + 2)
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QBrush(QColor(bg_color)))
-                painter.drawRoundedRect(badge_rect, 3, 3)
-                painter.setPen(QPen(Qt.GlobalColor.white))
-                painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
-                hotspot_x, hotspot_y = 0, 0
-            
-            painter.end()
-            return QCursor(pix, int(hotspot_x), int(hotspot_y))
-
-        if tool_id == "select":
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
-        elif tool_id == "marker":
-            c = create_badge_cursor("", "", is_marker=True)
-            self.setCursor(c); self.viewport().setCursor(c)
-        elif tool_id == "highlighter":
-            c = create_badge_cursor("", "", is_chisel=True)
-            self.setCursor(c); self.viewport().setCursor(c)
-        elif tool_id == "freetext":
-            c = create_badge_cursor("+MDS", "#0078d7")
-            self.setCursor(c); self.viewport().setCursor(c)
-        elif tool_id == "textbox":
-            c = create_badge_cursor("+CDT", "#d35400")
-            self.setCursor(c); self.viewport().setCursor(c)
-        elif tool_id == "signature":
-            c = create_badge_cursor("+FIR", "#27ae60")
-            self.setCursor(c); self.viewport().setCursor(c)
+        # Chiediamo alla factory di generare il cursore, passandogli i dati necessari
+        cursor = create_tool_cursor(tool_id, self.editor_props, self.current_zoom)
+        
+        # Applichiamo il cursore al canvas e alla viewport
+        self.setCursor(cursor)
+        self.viewport().setCursor(cursor)
 
     def _on_editor_tool_changed(self, tool_id):
         self.current_editor_tool = tool_id
