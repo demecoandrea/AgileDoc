@@ -305,13 +305,14 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         menu.addAction(action_delete)
         
         menu.addSeparator()
-        action_max_w = QAction("↔ Massimizza in larghezza", menu)
-        action_max_w.triggered.connect(self._maximize_width)
-        menu.addAction(action_max_w)
-        
-        action_max_h = QAction("↕ Massimizza in altezza", menu)
-        action_max_h.triggered.connect(self._maximize_height)
-        menu.addAction(action_max_h)
+        if not isinstance(self, AnnotationFreeTextItem):
+            action_max_w = QAction("↔ Massimizza in larghezza", menu)
+            action_max_w.triggered.connect(self._maximize_width)
+            menu.addAction(action_max_w)
+            
+            action_max_h = QAction("↕ Massimizza in altezza", menu)
+            action_max_h.triggered.connect(self._maximize_height)
+            menu.addAction(action_max_h)
         
         action_cent_h = QAction("⇹ Centra orizzontalmente", menu)
         action_cent_h.triggered.connect(self._center_horizontally)
