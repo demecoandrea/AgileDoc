@@ -5,6 +5,8 @@ from flask import Flask, request, jsonify
 from werkzeug.serving import make_server
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from const_and_resources import AppInfo
+
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -21,14 +23,13 @@ class LocalServerThread(QThread):
     open_ui_requested = pyqtSignal()     
     quicksave_requested = pyqtSignal()   
 
-    def __init__(self, port=5000, hub_name="AgileDoc Hub"):
+    def __init__(self, port=5000, hub_name=f"{AppInfo.NAME} Hub"):
         super().__init__()
         self.port = port
         self.hub_name = hub_name
         self.app = Flask(__name__)
         self.server = None
         
-        # AGGIORNATO: Ora punta alla cartella "temp/images"
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.workspace_dir = os.path.join(base_dir, "temp", "images")
         os.makedirs(self.workspace_dir, exist_ok=True)
@@ -40,7 +41,7 @@ class LocalServerThread(QThread):
         def ping():
             return jsonify({
                 "status": "ok", 
-                "message": "AgileDoc Server in ascolto!",
+                "message": f"{AppInfo.NAME} Server in ascolto!",
                 "hub_name": self.hub_name
             })
 

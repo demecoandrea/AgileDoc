@@ -6,6 +6,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel,
 from PyQt6.QtCore import pyqtSignal, Qt, QRectF
 from PyQt6.QtGui import QColor, QPainter
 
+# Importiamo le costanti centralizzate
+from const_and_resources import Colors, Styles
+
 # Importiamo la finestra modale del manager delle firme
 from signature_manager import SignatureManagerDialog
 
@@ -25,48 +28,11 @@ def set_custom_colors(color_strings):
         if i < 16:
             QColorDialog.setCustomColor(i, QColor(hex_str))
 
-TOOLBAR_STYLE = """
-    QFrame {
-        background-color: #2b2b2b;
-        border-radius: 6px;
-        border: 1px solid #4facfe;
-    }
-    QPushButton {
-        background-color: #3a3a3a;
-        color: #ddd;
-        border: 1px solid #555;
-        border-radius: 4px;
-        padding: 6px;
-        font-weight: bold;
-    }
-    QPushButton:hover { background-color: #505050; border: 1px solid #777; }
-    QPushButton:checked { background-color: #0078d7; color: white; border: 1px solid #005a9e; }
-    QPushButton:disabled { background-color: #222; color: #555; border: 1px solid #333; }
-    QLabel { background: transparent; border: none; font-size: 11px; color: #ccc; }
-    QComboBox, QSpinBox {
-        background-color: #3a3a3a;
-        border: 1px solid #555;
-        border-radius: 3px;
-        padding: 2px;
-        color: white;
-    }
-    /* FIX TESTO FANTASMA NELLA TENDINA */
-    QComboBox QAbstractItemView {
-        background-color: #3a3a3a;
-        color: white;
-        selection-background-color: #0078d7;
-    }
-    QSlider::groove:horizontal { border: 1px solid #555; height: 4px; background: #3a3a3a; border-radius: 2px; }
-    QSlider::handle:horizontal { background: #ddd; border: 1px solid #888; width: 12px; margin: -4px 0; border-radius: 6px; }
-    QSlider::handle:horizontal:hover { background: #fff; }
-    QWidget#subgroup { background: transparent; border: none; }
-"""
-
 class ColorButton(QPushButton):
     """Bottone quadrato che mostra il colore corrente e apre un color picker (senza alpha)."""
     color_changed = pyqtSignal(QColor)
 
-    def __init__(self, color=QColor(255, 255, 0)):
+    def __init__(self, color=Colors.HIGHLIGHT_YELLOW):
         super().__init__()
         self._color = QColor(color.red(), color.green(), color.blue())
         self.setFixedSize(14, 14)
@@ -106,7 +72,7 @@ class ColorRow(QWidget):
     """Riga compatta: etichetta | bottone colore | slider opacità."""
     color_changed = pyqtSignal(QColor)
 
-    def __init__(self, label_text, default_color=QColor(0, 0, 0), parent=None):
+    def __init__(self, label_text, default_color=Colors.BLACK, parent=None):
         super().__init__(parent)
         self.setFixedHeight(24)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
@@ -238,12 +204,12 @@ class ToolButton(QPushButton):
         rect = QRectF(x, y, self.TOGGLE_W, self.TOGGLE_H)
         
         if self._is_hard:
-            p.setBrush(QColor("#4ade80"))
+            p.setBrush(QColor(Colors.HEX_SUCCESS))
         else:
-            p.setBrush(QColor("#555555"))
+            p.setBrush(QColor(Colors.HEX_BORDER))
         
         p.drawRoundedRect(rect, self.TOGGLE_H / 2, self.TOGGLE_H / 2)
-        p.setBrush(QColor("#ffffff"))
+        p.setBrush(Colors.WHITE)
         circle_d = self.TOGGLE_H - 4
         if self._is_hard:
             p.drawEllipse(int(x + self.TOGGLE_W - self.TOGGLE_H + 2), int(y + 2), circle_d, circle_d)
@@ -259,7 +225,7 @@ class EditorToolbar(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet(TOOLBAR_STYLE)
+        self.setStyleSheet(Styles.TOOLBAR_STYLE)
         
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(15)
@@ -279,7 +245,7 @@ class EditorToolbar(QFrame):
         title_row.setSpacing(4)
         
         lbl_title = QLabel("MODALITÀ EDITOR")
-        lbl_title.setStyleSheet("font-weight: bold; color: #fff; font-size: 13px; border-bottom: 1px solid #4facfe; padding-bottom: 5px;")
+        lbl_title.setStyleSheet(f"font-weight: bold; color: #fff; font-size: 13px; border-bottom: 1px solid {Colors.HEX_ACCENT}; padding-bottom: 5px;")
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_row.addWidget(lbl_title, stretch=1)
         
@@ -356,19 +322,19 @@ class EditorToolbar(QFrame):
         l.setContentsMargins(5, 4, 0, 5)
         l.setSpacing(3)
 
-        default_border = QColor(0, 0, 0) if is_box else QColor(0, 0, 0, 0)
+        default_border = Colors.BLACK if is_box else Colors.TRANSPARENT
         row_border = ColorRow("Bordo", default_border)
         row_border.color_changed.connect(lambda c, t=tid: self.property_changed.emit(f"{t}_border_color", c))
         self.controls[f"{tid}_border_color"] = row_border
         l.addWidget(row_border)
 
-        default_bg = QColor(220, 220, 220) if is_box else QColor(255, 255, 255, 0)
+        default_bg = Colors.TEXT_DEFAULT_BG if is_box else Colors.FREETEXT_DEFAULT_BG
         row_bg = ColorRow("Sfondo", default_bg)
         row_bg.color_changed.connect(lambda c, t=tid: self.property_changed.emit(f"{t}_bg_color", c))
         self.controls[f"{tid}_bg_color"] = row_bg
         l.addWidget(row_bg)
 
-        row_text = ColorRow("Testo", QColor(0, 0, 0))
+        row_text = ColorRow("Testo", Colors.BLACK)
         row_text.color_changed.connect(lambda c, t=tid: self.property_changed.emit(f"{t}_color", c))
         self.controls[f"{tid}_color"] = row_text
         l.addWidget(row_text)
@@ -477,7 +443,7 @@ class EditorToolbar(QFrame):
         l.setContentsMargins(5, 4, 0, 5)
         l.setSpacing(3)
 
-        def_color = QColor(255, 255, 0) if tool_id == "highlighter" else QColor(0, 0, 0)
+        def_color = Colors.HIGHLIGHT_YELLOW if tool_id == "highlighter" else Colors.BLACK
         row_color = ColorRow("Colore", def_color)
         row_color.color_changed.connect(lambda c, t=tool_id: self.property_changed.emit(f"{t}_color", c))
         self.controls[f"{tool_id}_color"] = row_color
@@ -506,7 +472,6 @@ class EditorToolbar(QFrame):
         l.setContentsMargins(15, 0, 0, 5)
         l.setSpacing(4)
         
-        # --- LA RIGA CRITICA CHE MANCAVA ---
         combo = QComboBox()
         self.controls["signature_combo"] = combo 
         
@@ -531,7 +496,7 @@ class EditorToolbar(QFrame):
         combo.clear()
         
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.conf_dir = os.path.join(base_dir, "conf") # Assicuriamoci che esista
+        self.conf_dir = os.path.join(base_dir, "conf") 
         json_path = os.path.join(self.conf_dir, "signatures.json")
         sig_dir = os.path.join(base_dir, "signatures")
         
@@ -547,14 +512,12 @@ class EditorToolbar(QFrame):
                 for sig_id, data in sigs.items():
                     file_path = os.path.join(sig_dir, data['filename'])
                     if os.path.exists(file_path):
-                        # Aggiungiamo l'ID ai dati per poterlo ritrovare
                         combo.addItem(data['name'], {"path": file_path, "scale": data['scale'], "id": sig_id})
             except: pass
         
         if combo.count() == 0:
             combo.addItem("Nessuna firma salvata", None)
         else:
-            # Ripristina l'ultima firma usata se presente
             if last_id:
                 for i in range(combo.count()):
                     item_data = combo.itemData(i)
@@ -566,18 +529,13 @@ class EditorToolbar(QFrame):
         self._on_signature_combo_changed()
 
     def _open_signature_manager(self):
-        """Apre la finestra modale e seleziona la firma se l'utente ha cliccato SCEGLI."""
         dialog = SignatureManagerDialog(self)
-        if dialog.exec(): # Se ritorna True (l'utente ha cliccato SCEGLI o salvato modifiche)
+        if dialog.exec(): 
             self.load_signatures()
-            
-            # Se l'utente ha scelto una firma specifica, selezioniamola nella combo
             if dialog.selected_sig_id:
                 combo = self.controls.get("signature_combo")
                 if combo is not None:
-                    # Cerchiamo l'indice della firma appena scelta
                     for i in range(combo.count()):
-                        # Nota: le firme nel JSON sono id:data, noi cerchiamo il file_path salvato nei userData
                         sig_data = combo.itemData(i)
                         if sig_data and dialog.selected_sig_id in sig_data.get("path", ""):
                             combo.setCurrentIndex(i)
@@ -589,7 +547,6 @@ class EditorToolbar(QFrame):
         
         data = combo.currentData()
         if data:
-            # Salviamo in background l'ID dell'ultima firma scelta
             sig_id = data.get("id")
             if sig_id and hasattr(self, 'conf_dir'):
                 with open(os.path.join(self.conf_dir, "last_sig.txt"), "w") as f:
@@ -630,7 +587,7 @@ class EditorToolbar(QFrame):
         
         if docked:
             self.setGraphicsEffect(None)
-            self.setStyleSheet(TOOLBAR_STYLE + " QFrame { border-radius: 0; border: none; }")
+            self.setStyleSheet(Styles.TOOLBAR_STYLE + " QFrame { border-radius: 0; border: none; }")
             for tid in self.subgroups:
                 self.subgroups[tid].setVisible(True)
         else:
@@ -639,7 +596,7 @@ class EditorToolbar(QFrame):
             shadow.setColor(QColor(0, 0, 0, 150))
             shadow.setOffset(0, 4)
             self.setGraphicsEffect(shadow)
-            self.setStyleSheet(TOOLBAR_STYLE)
+            self.setStyleSheet(Styles.TOOLBAR_STYLE)
             for tid in self.subgroups:
                 self.subgroups[tid].setVisible(tid == self.current_tool)
             self.adjustSize()

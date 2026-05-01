@@ -2,10 +2,10 @@ import sys
 import os
 import json
 import winreg
-from version import __version__, APP_NAME
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QMessageBox
 from PyQt6.QtGui import QIcon, QAction, QCursor
 
+from const_and_resources import AppInfo
 from main_window import MainWindow, setup_dark_theme
 from api_server import LocalServerThread
 
@@ -39,7 +39,7 @@ class AgileDocDaemon:
 
         self.tray_menu = QMenu()
 
-        self.title_action = QAction(f"✨ {APP_NAME} v{__version__}", self.tray_menu)
+        self.title_action = QAction(f"✨ {AppInfo.NAME} v{AppInfo.VERSION}", self.tray_menu)
         self.title_action.setDisabled(True) 
         self.tray_menu.addAction(self.title_action)
         
@@ -90,7 +90,6 @@ class AgileDocDaemon:
         self.action_quit.triggered.connect(self.quit_app)
         self.tray_menu.addAction(self.action_quit)
 
-        # NOTA: Abbiamo rimosso setContextMenu per gestire l'apertura manualmente e fixare la posizione
         self.tray_icon.activated.connect(self.tray_activated)
         self.tray_icon.show()
 
@@ -149,7 +148,6 @@ class AgileDocDaemon:
         self.main_window.update_server_status_ui()
 
     def tray_activated(self, reason):
-        # FIX POSIZIONAMENTO MENU: Intercettiamo il click destro (Context)
         if reason == QSystemTrayIcon.ActivationReason.Context:
             pos = QCursor.pos()
             menu_size = self.tray_menu.sizeHint()

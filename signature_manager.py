@@ -8,13 +8,16 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QPen, QImage, QPainterPath, QTransform
 from PyQt6.QtCore import Qt, QSize, QPointF
 
+# Importiamo le risorse centralizzate
+from const_and_resources import Colors
+
 class SignatureDrawDialog(QDialog):
     """Finestra per disegnare la firma a mano libera in Alta Qualità Vettoriale."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Disegna Firma")
         self.setFixedSize(600, 400)
-        self.setStyleSheet("background-color: #2b2b2b; color: white;")
+        self.setStyleSheet(f"background-color: {Colors.HEX_BG_DIALOG}; color: white;")
         
         layout = QVBoxLayout(self)
         
@@ -31,9 +34,9 @@ class SignatureDrawDialog(QDialog):
         
         for idx, b in enumerate(self.buttons):
             b.setCheckable(True)
-            b.setStyleSheet("""
-                QPushButton { background-color: #3a3a3a; padding: 5px 15px; border-radius: 4px; }
-                QPushButton:checked { background-color: #0078d7; font-weight: bold; border: 1px solid white; }
+            b.setStyleSheet(f"""
+                QPushButton {{ background-color: {Colors.HEX_BTN_BG}; padding: 5px 15px; border-radius: 4px; }}
+                QPushButton:checked {{ background-color: {Colors.HEX_ACCENT}; font-weight: bold; border: 1px solid white; }}
             """)
             b.clicked.connect(lambda checked, btn=b, i=idx: self._set_thickness(btn, i))
             thick_layout.addWidget(b)
@@ -44,7 +47,7 @@ class SignatureDrawDialog(QDialog):
         
         # --- Canvas di Disegno ---
         self.label = QWidget()
-        self.label.setStyleSheet("background-color: white; border: 2px solid #4facfe;")
+        self.label.setStyleSheet(f"background-color: white; border: 2px solid {Colors.HEX_ACCENT};")
         self.label.setCursor(Qt.CursorShape.CrossCursor)
         layout.addWidget(self.label, stretch=1)
         
@@ -59,11 +62,11 @@ class SignatureDrawDialog(QDialog):
         # --- Tasti Azione ---
         btn_layout = QHBoxLayout()
         self.btn_clear = QPushButton("Resetta")
-        self.btn_clear.setStyleSheet("background-color: #555; padding: 8px;")
+        self.btn_clear.setStyleSheet(f"background-color: {Colors.HEX_BORDER}; padding: 8px;")
         self.btn_clear.clicked.connect(self._clear)
         
         self.btn_ok = QPushButton("Salva Disegno")
-        self.btn_ok.setStyleSheet("background-color: #0078d7; font-weight: bold; padding: 8px;")
+        self.btn_ok.setStyleSheet(f"background-color: {Colors.HEX_ACCENT}; font-weight: bold; padding: 8px;")
         self.btn_ok.clicked.connect(self.accept)
         
         btn_layout.addWidget(self.btn_clear)
@@ -90,20 +93,15 @@ class SignatureDrawDialog(QDialog):
         if event.buttons() & Qt.MouseButton.LeftButton and self.last_point:
             current_point = event.position()
             
-            # --- ALGORITMO BÉZIER (MIDPOINT SMOOTHING) ---
-            # Calcoliamo il punto esattamente in mezzo tra dove eravamo e dove siamo ora
             mid_point = QPointF((self.last_point.x() + current_point.x()) / 2.0,
                                 (self.last_point.y() + current_point.y()) / 2.0)
             
-            # Disegniamo una curva morbida usando l'ultimo punto come "calamita" e il mid_point come arrivo
             self.path.quadTo(self.last_point, mid_point)
             
-            # Aggiorniamo l'ultimo punto
             self.last_point = current_point
             self.label.update()
 
     def _mouse_release(self, event):
-        # Chiudiamo la curva tracciando l'ultimo minuscolo frammento
         if event.button() == Qt.MouseButton.LeftButton and self.last_point:
             self.path.lineTo(self.last_point)
             self.label.update()
@@ -112,14 +110,14 @@ class SignatureDrawDialog(QDialog):
     def _paint_pad(self, event):
         painter = QPainter(self.label)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(Qt.GlobalColor.black, self.pen_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setPen(QPen(Colors.BLACK, self.pen_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         painter.drawPath(self.path)
 
     def get_transparent_image(self):
         """Genera un'immagine trasparente 4x più grande per massima definizione."""
         if self.path.isEmpty(): return None
         
-        scale_factor = 4.0 # Moltiplicatore di Risoluzione (Antialiasing Perfetto)
+        scale_factor = 4.0 
         bbox = self.path.boundingRect()
         margin = 10
         render_rect = bbox.adjusted(-margin, -margin, margin, margin)
@@ -133,13 +131,12 @@ class SignatureDrawDialog(QDialog):
         painter = QPainter(img)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Mettiamo in scala il pennello e trasliamo le coordinate
         transform = QTransform()
         transform.scale(scale_factor, scale_factor)
         transform.translate(-render_rect.topLeft().x(), -render_rect.topLeft().y())
         painter.setTransform(transform)
         
-        painter.setPen(QPen(Qt.GlobalColor.black, self.pen_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setPen(QPen(Colors.BLACK, self.pen_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         painter.drawPath(self.path)
         painter.end()
         
@@ -150,7 +147,7 @@ class SignaturePropertiesDialog(QDialog):
     def __init__(self, name="", scale=20, is_new=True, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Proprietà Firma")
-        self.setStyleSheet("background-color: #2b2b2b; color: white;")
+        self.setStyleSheet(f"background-color: {Colors.HEX_BG_DIALOG}; color: white;")
         self.delete_requested = False
         layout = QFormLayout(self)
         self.name_input = QLineEdit(name)
@@ -165,7 +162,7 @@ class SignaturePropertiesDialog(QDialog):
         self.buttons.rejected.connect(self.reject)
         if not is_new:
             self.btn_delete = QPushButton("🗑️ Elimina")
-            self.btn_delete.setStyleSheet("background-color: #6a1c1c;")
+            self.btn_delete.setStyleSheet(f"background-color: {Colors.HEX_DANGER};")
             self.btn_delete.clicked.connect(self._handle_delete)
             layout.addRow(self.btn_delete)
         layout.addRow(self.buttons)
@@ -181,7 +178,7 @@ class SignatureManagerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Gestione Firme")
         self.resize(600, 450)
-        self.setStyleSheet("background-color: #2b2b2b; color: white;")
+        self.setStyleSheet(f"background-color: {Colors.HEX_BG_DIALOG}; color: white;")
         self.selected_sig_id = None
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.sig_dir = os.path.join(self.base_dir, "signatures")
@@ -208,9 +205,9 @@ class SignatureManagerDialog(QDialog):
         self.btn_select = QPushButton("✅ SCEGLI")
         
         for b in [self.btn_draw, self.btn_add, self.btn_edit]:
-            b.setStyleSheet("background-color: #3a3a3a; padding: 8px;")
+            b.setStyleSheet(f"background-color: {Colors.HEX_BTN_BG}; padding: 8px;")
             btn_layout.addWidget(b)
-        self.btn_select.setStyleSheet("background-color: #0078d7; font-weight: bold; padding: 8px;")
+        self.btn_select.setStyleSheet(f"background-color: {Colors.HEX_ACCENT}; font-weight: bold; padding: 8px;")
         btn_layout.addWidget(self.btn_select)
         layout.addLayout(btn_layout)
         

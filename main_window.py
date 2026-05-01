@@ -1,7 +1,6 @@
 import shutil
 import os
 import json
-from version import __version__, APP_NAME
 import uuid
 import re
 import socket 
@@ -10,24 +9,24 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QPushButton, QLabel, QSplitter, QScrollArea, QLineEdit,
                              QFrame, QFileDialog, QMessageBox, QComboBox, QDialog, 
                              QFormLayout, QDialogButtonBox, QCheckBox, QSpinBox, QTextEdit, QSizePolicy)
-from PyQt6.QtGui import QPalette, QColor, QAction, QIcon
+from PyQt6.QtGui import QPalette, QAction, QIcon
 from PyQt6.QtCore import Qt, pyqtSignal, QByteArray, QTimer, QFileSystemWatcher
 
+from const_and_resources import AppInfo, HelpTexts, Colors, Strings
 from source_panel_tree import SourcePanelTree
 from canvas_editor import CanvasEditor
 from editor_toolbar import get_custom_colors, set_custom_colors
 from api_server import get_local_ip
-from help_texts import SHORTCUTS_HTML
 from custom_widgets import LabeledToggle
 
 
 def setup_dark_theme(app):
     app.setStyle("Fusion")
     dark_palette = QPalette()
-    base_color = QColor(35, 35, 35)      
-    alt_base_color = QColor(25, 25, 25)  
-    text_color = QColor(220, 220, 220)   
-    accent_color = QColor(42, 130, 218)  
+    base_color = Colors.THEME_BASE      
+    alt_base_color = Colors.THEME_ALT_BASE  
+    text_color = Colors.THEME_TEXT   
+    accent_color = Colors.THEME_ACCENT  
 
     dark_palette.setColor(QPalette.ColorRole.Window, base_color)
     dark_palette.setColor(QPalette.ColorRole.WindowText, text_color)
@@ -68,11 +67,11 @@ class ScannerSelectionDialog(QDialog):
         self.combo_method = QComboBox()
         self.combo_method.addItems(["TWAIN", "WIA"])
         self.combo_method.setCurrentText(current_method if current_method else "TWAIN")
-        self.combo_method.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555;")
+        self.combo_method.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid {Colors.HEX_BORDER};")
         self.combo_method.currentTextChanged.connect(self.refresh_list)
         
         self.combo_scanners = QComboBox()
-        self.combo_scanners.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555;")
+        self.combo_scanners.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid {Colors.HEX_BORDER};")
         
         form.addRow("Tecnologia:", self.combo_method)
         form.addRow("Scanner:", self.combo_scanners)
@@ -136,7 +135,7 @@ class SettingsDialog(QDialog):
         self.combo_size = QComboBox()
         self.combo_size.addItems(["Piccola", "Media", "Grande", "Fissa"])
         self.combo_size.setCurrentText(current_size)
-        self.combo_size.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555;")
+        self.combo_size.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid {Colors.HEX_BORDER};")
 
         self.chk_dynamic = QCheckBox("Adatta la posizione dell'anteprima per non coprire il mouse")
         self.chk_dynamic.setChecked(current_dynamic)
@@ -144,15 +143,15 @@ class SettingsDialog(QDialog):
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1024, 65535)
         self.spin_port.setValue(current_port)
-        self.spin_port.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555;")
+        self.spin_port.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid {Colors.HEX_BORDER};")
 
         self.txt_hub_name = QLineEdit(current_hub_name)
-        self.txt_hub_name.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 3px;")
+        self.txt_hub_name.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid {Colors.HEX_BORDER}; border-radius: 3px;")
 
         self.combo_middle = QComboBox()
         self.combo_middle.addItems(["Strumento Mano (Pan)", "Auto-Scroll (Base)"])
         self.combo_middle.setCurrentText(current_middle_click)
-        self.combo_middle.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #555;")
+        self.combo_middle.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid {Colors.HEX_BORDER};")
 
         self.chk_flatten = QCheckBox("Appiattisci annotazioni (PDF non modificabile)")
         self.chk_flatten.setChecked(current_flatten)
@@ -187,9 +186,9 @@ class ShortcutsDialog(QDialog):
         layout = QVBoxLayout(self)
         text_area = QTextEdit()
         text_area.setReadOnly(True)
-        text_area.setStyleSheet("background-color: #2a2a2a; color: #ddd; font-size: 13px; border: none;")
+        text_area.setStyleSheet(f"background-color: {Colors.HEX_BG_LIGHTER}; color: #ddd; font-size: 13px; border: none;")
         
-        text_area.setHtml(SHORTCUTS_HTML)
+        text_area.setHtml(HelpTexts.SHORTCUTS_HTML)
         layout.addWidget(text_area)
         
         btn_close = QPushButton("Chiudi")
@@ -211,7 +210,7 @@ class CollapsibleFolder(QWidget):
         self.main_layout.setSpacing(0)
 
         self.header_frame = QFrame()
-        self.header_frame.setStyleSheet("background-color: #2a2a2a; border-bottom: 1px solid #3a3a3a;")
+        self.header_frame.setStyleSheet(f"background-color: {Colors.HEX_BG_LIGHTER}; border-bottom: 1px solid {Colors.HEX_BTN_BG};")
         header_layout = QHBoxLayout(self.header_frame)
         header_layout.setContentsMargins(5, 2, 5, 2)
         header_layout.setSpacing(2)
@@ -240,7 +239,7 @@ class CollapsibleFolder(QWidget):
 
         self.btn_remove = QPushButton("✕")
         self.btn_remove.setFixedWidth(20)
-        self.btn_remove.setStyleSheet("color: #ff4444; font-weight: bold; border: none; background: transparent;")
+        self.btn_remove.setStyleSheet(f"color: {Colors.HEX_DANGER}; font-weight: bold; border: none; background: transparent;")
         self.btn_remove.clicked.connect(self.emit_removal_request)
         header_layout.addWidget(self.btn_remove)
 
@@ -289,7 +288,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} v{__version__}")
+        self.setWindowTitle(f"{AppInfo.NAME} v{AppInfo.VERSION}")
         self.resize(1100, 750)
         
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -415,9 +414,9 @@ class MainWindow(QMainWindow):
         modifica_menu.addSeparator()
         
         export_mode_menu = modifica_menu.addMenu("📦 Modalità Esportazione")
-        action_force_raster = QAction("🗜️ Forza modalità rasterizzazione", self)
+        action_force_raster = QAction(Strings.MENU_FORCE_RASTER, self)
         action_force_raster.triggered.connect(lambda: self.canvas.bulk_set_export_mode("raster", use_selection=True))
-        action_force_native = QAction("📄 Forza modalità nativa (originale)", self)
+        action_force_native = QAction(Strings.MENU_FORCE_NATIVE, self)
         action_force_native.triggered.connect(lambda: self.canvas.bulk_set_export_mode("native", use_selection=True))
         export_mode_menu.addAction(action_force_raster)
         export_mode_menu.addAction(action_force_native)
@@ -518,8 +517,8 @@ class MainWindow(QMainWindow):
         self.lbl_server_status = QLabel("")
         self.lbl_server_status.setWordWrap(True)
         self.lbl_server_status.setMinimumHeight(45)
-        self.lbl_server_status.setStyleSheet("""
-            background-color: #1e3d23; color: #4ade80; 
+        self.lbl_server_status.setStyleSheet(f"""
+            background-color: #1e3d23; color: {Colors.HEX_SUCCESS}; 
             padding: 8px; border-radius: 4px; font-weight: bold; font-size: 11px;
         """)
         self.lbl_server_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -534,7 +533,7 @@ class MainWindow(QMainWindow):
         preview_layout.setSpacing(0)
         
         top_toolbar_frame = QFrame()
-        top_toolbar_frame.setStyleSheet("background-color: #2a2a2a; border-bottom: 1px solid #1a1a1a;")
+        top_toolbar_frame.setStyleSheet(f"background-color: {Colors.HEX_BG_LIGHTER}; border-bottom: 1px solid {Colors.HEX_BG_DARK};")
         top_layout = QHBoxLayout(top_toolbar_frame)
         top_layout.setContentsMargins(10, 8, 10, 8)
         top_layout.setSpacing(8)
@@ -559,13 +558,13 @@ class MainWindow(QMainWindow):
 
         self.txt_quick_filename = QuickSaveLineEdit()
         self.txt_quick_filename.setMinimumWidth(180)
-        self.txt_quick_filename.setStyleSheet("padding: 4px; border: 1px solid #555; border-radius: 3px;")
+        self.txt_quick_filename.setStyleSheet(f"padding: 4px; border: 1px solid {Colors.HEX_BORDER}; border-radius: 3px;")
         self.txt_quick_filename.textChanged.connect(self.validate_quick_filename)
         top_layout.addWidget(self.txt_quick_filename)
 
         self.btn_name_warning = QPushButton("⚠️")
         self.btn_name_warning.setToolTip("File già esistente! Clicca per generare un nuovo numero progressivo.")
-        self.btn_name_warning.setStyleSheet("color: #ffaa00; font-weight: bold; background: transparent; border: none; font-size: 16px;")
+        self.btn_name_warning.setStyleSheet(f"color: {Colors.HEX_WARNING}; font-weight: bold; background: transparent; border: none; font-size: 16px;")
         self.btn_name_warning.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_name_warning.clicked.connect(self.bump_filename_counter)
         self.btn_name_warning.hide()
@@ -577,7 +576,7 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.btn_quick_save)
 
         self.lbl_save_status = QLabel("✔️ Salvato!")
-        self.lbl_save_status.setStyleSheet("color: #4ade80; font-weight: bold;")
+        self.lbl_save_status.setStyleSheet(f"color: {Colors.HEX_SUCCESS}; font-weight: bold;")
         self.lbl_save_status.hide()
         top_layout.addWidget(self.lbl_save_status)
 
@@ -589,7 +588,7 @@ class MainWindow(QMainWindow):
 
         self.combo_quality = QComboBox()
         self.combo_quality.addItems(["Alta (300 DPI)", "Media (150 DPI)", "Bassa (96 DPI)"])
-        self.combo_quality.setStyleSheet("padding: 3px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 3px;")
+        self.combo_quality.setStyleSheet(f"padding: 3px; background-color: {Colors.HEX_BTN_BG}; border: 1px solid #4a4a4a; border-radius: 3px;")
         self.combo_quality.currentIndexChanged.connect(self.save_config)
         top_layout.addWidget(self.combo_quality)
 
@@ -613,7 +612,7 @@ class MainWindow(QMainWindow):
         self.docked_editor_container.setFrameShape(QFrame.Shape.NoFrame)
         self.docked_editor_container.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.docked_editor_container.setStyleSheet(
-            "QScrollArea { background-color: #2b2b2b; border: none; border-right: 1px solid #4facfe; }")
+            f"QScrollArea {{ background-color: {Colors.HEX_BG_DIALOG}; border: none; border-right: 1px solid {Colors.HEX_ACCENT}; }}")
         self.docked_editor_container.hide()
         
         canvas_area_layout.addWidget(self.docked_editor_container)
@@ -622,15 +621,15 @@ class MainWindow(QMainWindow):
         preview_layout.addWidget(canvas_area, stretch=1)
         
         bottom_toolbar_frame = QFrame()
-        bottom_toolbar_frame.setStyleSheet("background-color: #2a2a2a; border-top: 1px solid #1a1a1a;")
+        bottom_toolbar_frame.setStyleSheet(f"background-color: {Colors.HEX_BG_LIGHTER}; border-top: 1px solid {Colors.HEX_BG_DARK};")
         bottom_layout = QHBoxLayout(bottom_toolbar_frame)
         bottom_layout.setContentsMargins(10, 5, 10, 5)
         
-        btn_nav_style = "QPushButton { background-color: #333; border: 1px solid #555; border-radius: 3px; padding: 4px 10px; font-weight: bold; } QPushButton:hover { background-color: #444; }"
+        btn_nav_style = f"QPushButton {{ background-color: #333; border: 1px solid {Colors.HEX_BORDER}; border-radius: 3px; padding: 4px 10px; font-weight: bold; }} QPushButton:hover {{ background-color: #444; }}"
         
         self.txt_selection_info = QLineEdit()
         self.txt_selection_info.setReadOnly(True)
-        self.txt_selection_info.setStyleSheet("background-color: transparent; border: none; color: #4facfe; font-weight: bold;")
+        self.txt_selection_info.setStyleSheet(f"background-color: transparent; border: none; color: {Colors.HEX_ACCENT}; font-weight: bold;")
         self.txt_selection_info.setFixedWidth(250) 
         self.txt_selection_info.setText("")
         bottom_layout.addWidget(self.txt_selection_info)
@@ -778,8 +777,6 @@ class MainWindow(QMainWindow):
         
         self.canvas.clear_all()
         self.is_document_dirty = False
-        # Rimosso il reset del testo di self.txt_quick_filename per permettere 
-        # all'utente di mantenere il nome del paziente corrente.
 
     def mark_document_dirty(self): self.is_document_dirty = True
 
@@ -814,10 +811,10 @@ class MainWindow(QMainWindow):
         filename = self.txt_quick_filename.text().strip()
         if not filename.lower().endswith(".pdf"): filename += ".pdf"
         if os.path.exists(os.path.join(self.quick_save_folder, filename)):
-            self.txt_quick_filename.setStyleSheet("padding: 4px; border: 2px solid #cc0000; border-radius: 3px; background-color: #4a1c1c;")
+            self.txt_quick_filename.setStyleSheet(f"padding: 4px; border: 2px solid {Colors.HEX_DANGER_HOVER}; border-radius: 3px; background-color: #4a1c1c;")
             self.btn_name_warning.show()
         else:
-            self.txt_quick_filename.setStyleSheet("padding: 4px; border: 1px solid #555; border-radius: 3px;")
+            self.txt_quick_filename.setStyleSheet(f"padding: 4px; border: 1px solid {Colors.HEX_BORDER}; border-radius: 3px;")
             self.btn_name_warning.hide()
 
     def bump_filename_counter(self):
@@ -861,7 +858,6 @@ class MainWindow(QMainWindow):
     def update_navigation_ui(self, corrente, totale):
         self.current_page_idx = corrente - 1
         self.lbl_page_indicator.setText(f"Pagina {corrente} / {totale}")
-        # btn_fab_new è sempre visibile; _update_fab_state() aggiorna icona e comportamento
         
     def update_selection_ui(self, selected_indices):
         if not selected_indices: self.txt_selection_info.setText("")
@@ -881,9 +877,7 @@ class MainWindow(QMainWindow):
     def handle_zoom_ui_update(self, percentage): self.lbl_zoom.setText(f"{percentage}%"); self.save_config()
 
     def open_advanced_adjustment(self, image_paths, target_idx):
-        """Opens PopupRegolazioneAvanzata for new images (Case 1)."""
         from document_scanner_pro import PopupRegolazioneAvanzata
-        # Facciamo una copia delle sorgenti nella cartella temp/images prima di passarle al popup
         temp_src_paths = []
         for path in image_paths:
             ext = os.path.splitext(path)[1] or ".jpg"
@@ -896,7 +890,6 @@ class MainWindow(QMainWindow):
             self.canvas.add_adjusted_images(dialog.final_pairs, target_idx)
 
     def open_advanced_adjustment_for_items(self, items):
-        """Opens PopupRegolazioneAvanzata on one or more already-placed images (Case 2)."""
         from document_scanner_pro import PopupRegolazioneAvanzata
         
         source_paths = []
@@ -924,15 +917,12 @@ class MainWindow(QMainWindow):
         clipboard = QApplication.clipboard()
         if clipboard.mimeData().hasImage():
             image = clipboard.image()
-            # Salvataggio immediato in temp come "src_"
             path = os.path.join(self.canvas.img_dir, f"src_clipboard_{uuid.uuid4().hex}.png")
             image.save(path, "PNG")
             if self.toggle_advanced.isChecked():
-                # Passiamo il file appena creato in temp
                 self.open_advanced_adjustment([path], len(self.canvas.pages))
             else:
                 nuova_pagina = self.canvas.add_page(auto_save=False)
-                # Se regolazione avanzata è OFF, usiamo direttamente la sorgente
                 self.canvas.add_image_to_page(path, nuova_pagina, center=True, auto_save=True)
                 self.canvas.select_single_page(nuova_pagina)
         else:
@@ -1005,7 +995,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event): self.save_config(); super().closeEvent(event); self.window_closed.emit()
 
     def _handle_editor_dock_toggle(self, docked):
-        """Handles switching between docked and floating editor toolbar."""
         toolbar = self.canvas.editor_toolbar
         self.canvas._editor_docked = docked
         toolbar.set_dock_mode(docked)
@@ -1028,6 +1017,5 @@ class MainWindow(QMainWindow):
         self.save_config()
 
     def _handle_editing_state_for_dock(self, is_editing):
-        """Shows/hides the docked editor container when editing mode changes."""
         if getattr(self.canvas, '_editor_docked', False):
             self.docked_editor_container.setVisible(is_editing)

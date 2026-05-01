@@ -1,13 +1,13 @@
 from PyQt6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsRectItem, 
                              QMenu, QPushButton, QApplication, 
-                             QLabel, QProgressDialog, QGraphicsDropShadowEffect)
+                             QLabel, QGraphicsDropShadowEffect)
 from PyQt6.QtGui import (QColor, QBrush, QPen, QPainter, QPixmap, QTransform, QAction, QImageReader, QMouseEvent, QPainterPath)
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QTimer
 import shutil
 import uuid
 import os
-import fitz # PyMuPDF
 
+from const_and_resources import Dimensions, Colors, Styles, Strings
 from editor_toolbar import EditorToolbar
 from pdf_annotations import AnnotationFreeTextItem, AnnotationTextBoxItem, AnnotationPathItem
 from cursor_factory import create_tool_cursor
@@ -16,12 +16,6 @@ from pdf_exporter import PdfExporter
 from canvas_widgets import UndoSnackbar, PageOutputModeWidget, PageInfoButton, PageNumberIndicator, PageToolbar
 from workspace_manager import WorkspaceManager
 from file_importer import FileImporter
-
-A4_WIDTH = 595.0
-A4_HEIGHT = 842.0
-
-# Dimensione fissa degli handle di editing in pixel di schermo.
-_HANDLE_PX = 20
 
 class CanvasEditor(QGraphicsView):
     zoom_changed = pyqtSignal(int)
@@ -97,8 +91,8 @@ class CanvasEditor(QGraphicsView):
         self.toast_timer.timeout.connect(self.undo_snackbar.hide)
         self.setAcceptDrops(True) 
         
-        self.drop_indicator = QGraphicsRectItem(-20, 0, A4_WIDTH + 40, 6)
-        self.drop_indicator.setBrush(QBrush(QColor(42, 130, 218, 200))) 
+        self.drop_indicator = QGraphicsRectItem(-20, 0, Dimensions.A4_WIDTH + 40, 6)
+        self.drop_indicator.setBrush(QBrush(Colors.DROP_INDICATOR)) 
         self.drop_indicator.setPen(QPen(Qt.PenStyle.NoPen))
         self.drop_indicator.setZValue(100) 
         self.scene.addItem(self.drop_indicator)
@@ -134,23 +128,22 @@ class CanvasEditor(QGraphicsView):
         self.editor_toolbar.property_changed.connect(self._on_editor_property_changed)
         self.editor_toolbar.action_requested.connect(self._on_editor_action_requested)
 
-        # Forza l'invio dei dati della firma ORA che il Canvas è in ascolto
         QTimer.singleShot(50, self.editor_toolbar._on_signature_combo_changed)
 
         self.current_editor_tool = "select"
         self.editor_props = {
-            "freetext_border_color": QColor(0,0,0,0),
-            "freetext_bg_color": QColor(255,255,255,0),
-            "freetext_color": QColor(0,0,0),
+            "freetext_border_color": Colors.TRANSPARENT,
+            "freetext_bg_color": Colors.TRANSPARENT,
+            "freetext_color": Colors.BLACK,
             "freetext_font_family": "Helvetica",
             "freetext_font_size": 12,
             "freetext_font_bold": False,
             "freetext_font_italic": False,
             "freetext_font_underline": False,
             
-            "textbox_border_color": QColor(0,0,0),
-            "textbox_bg_color": QColor(220,220,220),
-            "textbox_color": QColor(0,0,0),
+            "textbox_border_color": Colors.BLACK,
+            "textbox_bg_color": Colors.TEXT_DEFAULT_BG,
+            "textbox_color": Colors.BLACK,
             "textbox_font_family": "Helvetica",
             "textbox_font_size": 12,
             "textbox_font_bold": False,
@@ -160,9 +153,9 @@ class CanvasEditor(QGraphicsView):
             "textbox_align_v": "Alto",
             "textbox_wrap": True,
             
-            "marker_color": QColor(0,0,0),
+            "marker_color": Colors.BLACK,
             "marker_thickness": 2,
-            "highlighter_color": QColor(255,255,0),
+            "highlighter_color": Colors.HIGHLIGHT_YELLOW,
             "highlighter_thickness": 10,
             "signature_path": None
         }
@@ -205,10 +198,7 @@ class CanvasEditor(QGraphicsView):
         self.viewport().update()
 
     def _update_cursor_for_tool(self, tool_id):
-        # Chiediamo alla factory di generare il cursore, passandogli i dati necessari
         cursor = create_tool_cursor(tool_id, self.editor_props, self.current_zoom)
-        
-        # Applichiamo il cursore al canvas e alla viewport
         self.setCursor(cursor)
         self.viewport().setCursor(cursor)
 
@@ -221,8 +211,6 @@ class CanvasEditor(QGraphicsView):
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             
         self._update_cursor_for_tool(tool_id)
-
-        # FIX BUG ESC: Riprendiamo il focus sul canvas ogni volta che si cambia tool
         self.setFocus()
         
         if hasattr(self, 'editor_toolbar') and self.editor_toolbar.isVisible() and not getattr(self, '_editor_docked', False):
@@ -232,8 +220,6 @@ class CanvasEditor(QGraphicsView):
     def _on_editor_property_changed(self, prop_name, value):
         self.editor_props[prop_name] = value
         
-        # Se cambiamo spessore o colore, aggiorniamo il cursore in tempo reale
-        # senza sganciare la selezione dell'elemento attivo!
         if ("thickness" in prop_name or "color" in prop_name) and self.current_editor_tool in ["marker", "highlighter"]:
             self._update_cursor_for_tool(self.current_editor_tool)
 
@@ -314,7 +300,7 @@ class CanvasEditor(QGraphicsView):
         self.toast_timer.start(3000)
 
     def drawBackground(self, painter, rect):
-        painter.fillRect(rect, QColor(30, 30, 30))
+        painter.fillRect(rect, Colors.BG_DARK)
         if not self.bg_image.isNull():
             view_rect = self.mapToScene(self.viewport().rect()).boundingRect()
             painter.drawPixmap(view_rect, self.bg_image, QRectF(self.bg_image.rect()))
@@ -327,16 +313,13 @@ class CanvasEditor(QGraphicsView):
         
         if self._is_dragging_items and self._ctrl_pressed:
             painter.save()
-            painter.setPen(QPen(QColor(100, 150, 255, 180), 2, Qt.PenStyle.DashLine))
+            painter.setPen(QPen(Colors.SELECTION_GHOST, 2, Qt.PenStyle.DashLine))
             painter.setBrush(QBrush(QColor(0, 100, 200, 30)))
             for item, orig_pos in self._drag_initial_positions.items():
                 current_pos = item.pos()
                 dx = orig_pos.x() - current_pos.x()
                 dy = orig_pos.y() - current_pos.y()
-                # Applica l'offset al contrario per posizionare il fantasma alla posizione originale
                 ghost_scene_rect = item.sceneBoundingRect().translated(dx, dy)
-                
-                # FIX GHOST: Il painter qui lavora già in coordinate Scena! 
                 painter.drawRect(ghost_scene_rect)
             painter.restore()
 
@@ -346,7 +329,7 @@ class CanvasEditor(QGraphicsView):
 
         painter.save()
         painter.resetTransform()
-        H = float(_HANDLE_PX)
+        H = float(Dimensions.HANDLE_PX)
 
         for item in selected:
             if not getattr(item, 'is_editable', False):
@@ -380,7 +363,6 @@ class CanvasEditor(QGraphicsView):
         else:
             label_text = "FIR" if getattr(item, 'is_signature', False) else "IMG"
 
-        # Label alto-sinistra
         label_h = H
         label_w = int(H * 1.8)
         lbl_rect = QRectF(tl.x(), tl.y() - label_h - 4, label_w, label_h)
@@ -394,11 +376,10 @@ class CanvasEditor(QGraphicsView):
         painter.setFont(font2)
         painter.drawText(lbl_rect, Qt.AlignmentFlag.AlignCenter, label_text)
 
-        # Resize handle
         if isinstance(item, EditableImageItem):
             resize_rect = QRectF(br.x() - H, br.y() - H, H, H)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 150, 255)))
+            painter.setBrush(QBrush(Colors.SELECTION_BLUE))
             painter.drawRect(resize_rect)
         elif isinstance(item, AnnotationTextBoxItem) and not isinstance(item, AnnotationFreeTextItem):
             sel_pad = 3
@@ -406,13 +387,12 @@ class CanvasEditor(QGraphicsView):
             br_tb = self._vp(item, sel_br_local)
             resize_rect = QRectF(br_tb.x() - H, br_tb.y() - H, H, H)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 150, 255)))
+            painter.setBrush(QBrush(Colors.SELECTION_BLUE))
             painter.drawRect(resize_rect)
 
-        # Rotate handle & Toggle
         if isinstance(item, EditableImageItem):
             rot_rect = QRectF(tc.x() - H / 2, tc.y(), H, H)
-            painter.setBrush(QBrush(QColor(255, 165, 0)))
+            painter.setBrush(QBrush(Colors.HANDLE_ORANGE))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rot_rect, H * 0.15, H * 0.15)
             pen_w = H * 0.12
@@ -430,7 +410,7 @@ class CanvasEditor(QGraphicsView):
 
             toggle_rect = QRectF(tl.x(), tl.y(), H, H)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 150, 255) if item.export_mode == "native" else QColor(100, 100, 100)))
+            painter.setBrush(QBrush(Colors.SELECTION_BLUE if item.export_mode == "native" else QColor(100, 100, 100)))
             painter.drawRect(toggle_rect)
             painter.setPen(QPen(Qt.GlobalColor.white))
             font = painter.font()
@@ -570,12 +550,12 @@ class CanvasEditor(QGraphicsView):
 
     def refresh_layout(self):
         y_offset = 0.0
-        max_w = max([(A4_HEIGHT if p.is_landscape else A4_WIDTH) for p in self.pages], default=A4_WIDTH)
+        max_w = max([(Dimensions.A4_HEIGHT if p.is_landscape else Dimensions.A4_WIDTH) for p in self.pages], default=Dimensions.A4_WIDTH)
         
         self.drop_indicator.setRect(-20, 0, max_w + 40, 6)
         for page in self.pages:
-            w = A4_HEIGHT if page.is_landscape else A4_WIDTH
-            h = A4_WIDTH if page.is_landscape else A4_HEIGHT
+            w = Dimensions.A4_HEIGHT if page.is_landscape else Dimensions.A4_WIDTH
+            h = Dimensions.A4_WIDTH if page.is_landscape else Dimensions.A4_HEIGHT
             page.setPos((max_w - w) / 2.0, y_offset)
             y_offset += h + self.page_spacing
             
@@ -737,7 +717,6 @@ class CanvasEditor(QGraphicsView):
                 self.scene.invalidate(self.scene.sceneRect(), QGraphicsScene.SceneLayer.ForegroundLayer)
                 self.viewport().update()
 
-        # Scorciatoie Globali Copia/Incolla in editing
         if self.is_editing_mode and modifiers == Qt.KeyboardModifier.ControlModifier:
             if key == Qt.Key.Key_C:
                 self.action_copy()
@@ -865,11 +844,9 @@ class CanvasEditor(QGraphicsView):
 
     def contextMenuEvent(self, event):
         if self.is_editing_mode: 
-            # Dobbiamo capire se stiamo cliccando su un oggetto (immagine, testo, disegno)
             click_pos = self.mapToScene(event.pos())
             item = self.scene.itemAt(click_pos, self.transform())
             
-            # Risaliamo la gerarchia per capire se l'oggetto o un suo "padre" è editabile
             eff_item = item
             is_item_editable = False
             while eff_item:
@@ -878,22 +855,20 @@ class CanvasEditor(QGraphicsView):
                     break
                 eff_item = eff_item.parentItem()
                 
-            # Se è un elemento editabile, deleghiamo l'evento a lui (mostrerà il SUO menu contestuale)
             if is_item_editable:
                 super().contextMenuEvent(event)
                 return
 
-            # Se invece abbiamo cliccato sul foglio vuoto, mostriamo il menu globale Copia/Incolla
             menu = QMenu(self)
-            menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+            menu.setStyleSheet(Styles.MENU_STYLE)
             
             selected = [i for i in self.scene.selectedItems() if getattr(i, 'is_editable', False)]
-            action_copy = QAction("📄 Copia", menu)
+            action_copy = QAction(Strings.MENU_COPY, menu)
             action_copy.setEnabled(len(selected) > 0)
             action_copy.triggered.connect(self.action_copy)
             menu.addAction(action_copy)
             
-            action_paste = QAction("📋 Incolla", menu)
+            action_paste = QAction(Strings.MENU_PASTE, menu)
             action_paste.setEnabled(len(self._internal_clipboard) > 0)
             action_paste.triggered.connect(self.action_paste)
             menu.addAction(action_paste)
@@ -902,9 +877,8 @@ class CanvasEditor(QGraphicsView):
             event.accept()
             return
             
-        # --- MODALITÀ NON EDITING: MENU DELLE PAGINE ---
         menu = QMenu(self)
-        menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+        menu.setStyleSheet(Styles.MENU_STYLE)
         
         if not self.selected_pages:
             action_empty = menu.addAction("Nessuna pagina selezionata")
@@ -913,9 +887,9 @@ class CanvasEditor(QGraphicsView):
             return
             
         export_menu = menu.addMenu("📦 Modalità Esportazione")
-        action_force_raster = QAction("🗜️ Forza modalità rasterizzazione", export_menu)
+        action_force_raster = QAction(Strings.MENU_FORCE_RASTER, export_menu)
         action_force_raster.triggered.connect(lambda: self.bulk_set_export_mode("raster", use_selection=True))
-        action_force_native = QAction("📄 Forza modalità nativa (originale)", export_menu)
+        action_force_native = QAction(Strings.MENU_FORCE_NATIVE, export_menu)
         action_force_native.triggered.connect(lambda: self.bulk_set_export_mode("native", use_selection=True))
         
         export_menu.addAction(action_force_raster)
@@ -966,7 +940,6 @@ class CanvasEditor(QGraphicsView):
         
         if self.is_editing_mode:
             if event.button() == Qt.MouseButton.LeftButton:
-                # Gestione Tool personalizzati
                 if self.current_editor_tool != "select":
                     if page_clicked == self.active_page:
                         is_on_text_item = False
@@ -1056,24 +1029,18 @@ class CanvasEditor(QGraphicsView):
                             event.accept()
                             return
 
-                # Se siamo qui, stiamo usando il tool Select o cliccando fuori.
-                # Inoltriamo l'evento a Qt per la gestione automatica di selezione/trascinamento
                 super().mousePressEvent(event)
                 
-                # Ora valutiamo se l'utente ha "acchiappato" qualcosa che era selezionato
                 selected = [i for i in self.scene.selectedItems() if getattr(i, 'is_editable', False)]
                 
-                # FIX DUPLICAZIONE TESTI: se clicchiamo esattamente sul testo (figlio), risaliamo al contenitore padre
                 eff_item = item
                 while eff_item and not getattr(eff_item, 'is_editable', False):
                     eff_item = eff_item.parentItem()
                     
                 if selected and (item in selected or eff_item in selected):
                     self._is_dragging_items = True
-                    # FIX: Usiamo pos() per coordinate locali, non scenePos()!
                     self._drag_initial_positions = {i: i.pos() for i in selected}
                 
-                # RETURN OBBLIGATORIO per non finire nel blocco di selezione delle pagine o nel super() finale!
                 return
                 
             elif event.button() == Qt.MouseButton.RightButton:
@@ -1081,7 +1048,6 @@ class CanvasEditor(QGraphicsView):
                 return
                 
         else:
-            # NON SIAMO IN MODALITÀ EDITING
             if event.button() == Qt.MouseButton.RightButton:
                 event.accept()
                 return
@@ -1116,8 +1082,6 @@ class CanvasEditor(QGraphicsView):
                         self.clear_selection()
                         self.last_selected_page = None
 
-        # Questo super() verrà eseguito SOLAMENTE se NON eravamo in is_editing_mode, 
-        # garantendo che l'evento non venga scatenato due volte.
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -1138,7 +1102,7 @@ class CanvasEditor(QGraphicsView):
             return
         
         if self._is_dragging_items:
-            self.viewport().update() # Forza il ridisegno dei fantasmi
+            self.viewport().update() 
             
         if self._internal_drag_active and self.selected_pages and event.buttons() & Qt.MouseButton.LeftButton:
             if (event.pos() - self._drag_start_pos).manhattanLength() > 10:
@@ -1161,13 +1125,9 @@ class CanvasEditor(QGraphicsView):
         self._ctrl_pressed = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.button() == Qt.MouseButton.MiddleButton:
             if "Mano" in self.middle_click_mode: 
-                # ---- FIX BUG PANNING: Il Rilascio Fantasma ----
-                # Dobbiamo inviare un finto rilascio del tasto sinistro a PyQt
-                # altrimenti la view rimane incastrata credendo che stiamo ancora trascinando il foglio!
                 fake = QMouseEvent(event.type(), event.position(), event.globalPosition(), 
                                    Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, event.modifiers())
                 super().mouseReleaseEvent(fake)
-                # -----------------------------------------------
                 
                 if self.is_editing_mode and getattr(self, 'current_editor_tool', 'select') == "select":
                     self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
@@ -1182,14 +1142,9 @@ class CanvasEditor(QGraphicsView):
         
         if self._is_dragging_items:
             if self._ctrl_pressed:
-                # 1. Serializziamo gli oggetti NELLA LORO NUOVA POSIZIONE
                 clones_data = [WorkspaceManager.serialize_item(i) for i in self._drag_initial_positions.keys()]
-                
-                # 2. Riportiamo gli originali al punto di partenza
                 for i, orig_pos in self._drag_initial_positions.items():
                     i.setPos(orig_pos)
-                
-                # 3. Creiamo i cloni nel punto di rilascio
                 self.scene.clearSelection()
                 for data in clones_data:
                     new_item = WorkspaceManager.deserialize_item(data, self.active_page, 0, 0)
@@ -1366,8 +1321,8 @@ class CanvasEditor(QGraphicsView):
         return p
 
     def update_scene_rect(self):
-        max_w = max([(A4_HEIGHT if p.is_landscape else A4_WIDTH) for p in self.pages], default=A4_WIDTH)
-        total_h = sum((A4_WIDTH if p.is_landscape else A4_HEIGHT) + self.page_spacing for p in self.pages)
+        max_w = max([(Dimensions.A4_HEIGHT if p.is_landscape else Dimensions.A4_WIDTH) for p in self.pages], default=Dimensions.A4_WIDTH)
+        total_h = sum((Dimensions.A4_WIDTH if p.is_landscape else Dimensions.A4_HEIGHT) + self.page_spacing for p in self.pages)
         self.scene.setSceneRect(-150, -40, max_w + 300, total_h + 80)
 
     def get_centered_page(self):
@@ -1589,8 +1544,8 @@ class CanvasEditor(QGraphicsView):
             return
             
         item = EditableImageItem(QPixmap.fromImage(img), page, lpath, orig_pdf_path, orig_page_num, regulated_path, corner_points)
-        pw = A4_HEIGHT if page.is_landscape else A4_WIDTH
-        ph = A4_WIDTH if page.is_landscape else A4_HEIGHT
+        pw = Dimensions.A4_HEIGHT if page.is_landscape else Dimensions.A4_WIDTH
+        ph = Dimensions.A4_WIDTH if page.is_landscape else Dimensions.A4_HEIGHT
         
         scale = min((pw - 20.0) / item.pixmap().width(), (ph - 20.0) / item.pixmap().height())
         item.scale_x = scale
@@ -1662,7 +1617,6 @@ class CanvasEditor(QGraphicsView):
             for pd in state.get("pages", []):
                 p = self.add_page_at(auto_save=False, is_landscape=pd.get("is_landscape", False))
                 for item_data in pd.get("items", []):
-                    # Ricrea l'oggetto e lo appiccica alla pagina
                     WorkspaceManager.deserialize_item(item_data, p)
                     
             self.refresh_layout()
@@ -1673,7 +1627,6 @@ class CanvasEditor(QGraphicsView):
             print(f"Errore ricostruzione workspace: {e}")
 
     def export_to_pdf(self, file_path, dpi=150, flatten_annotations=True):
-        # Deleghiamo tutto il lavoro duro alla nostra nuova classe dedicata
         return PdfExporter.export(
             pages=self.pages, 
             file_path=file_path, 

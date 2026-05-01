@@ -2,6 +2,8 @@ from PyQt6.QtWidgets import QPushButton, QWidget, QHBoxLayout, QLabel, QFrame
 from PyQt6.QtGui import QPainter, QColor, QFontMetrics
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 
+from const_and_resources import Colors
+
 class ToggleSwitch(QWidget):
     toggled = pyqtSignal(bool)
     
@@ -31,12 +33,12 @@ class ToggleSwitch(QWidget):
         rect = QRectF(0, 0, self.width(), self.height())
         
         if self._is_checked:
-            p.setBrush(QColor("#4ade80")) # Verde
+            p.setBrush(QColor(Colors.HEX_SUCCESS)) 
         else:
-            p.setBrush(QColor("#555555")) # Grigio
+            p.setBrush(QColor(Colors.HEX_BORDER)) 
             
         p.drawRoundedRect(rect, self.height() / 2, self.height() / 2)
-        p.setBrush(QColor("#ffffff"))
+        p.setBrush(Colors.WHITE)
         
         if self._is_checked:
             p.drawEllipse(int(self.width() - self.height() + 2), 2, int(self.height() - 4), int(self.height() - 4))
@@ -49,12 +51,12 @@ class LabeledToggle(QFrame):
 
     def __init__(self, label_text, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            LabeledToggle {
-                background-color: #3a3a3a; 
+        self.setStyleSheet(f"""
+            LabeledToggle {{
+                background-color: {Colors.HEX_BTN_BG}; 
                 border-radius: 4px; 
-                border: 1px solid #555555;
-            }
+                border: 1px solid {Colors.HEX_BORDER};
+            }}
         """)
         
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -68,14 +70,12 @@ class LabeledToggle(QFrame):
         
         self.label = QLabel(label_text)
         
-        # Calcoliamo la larghezza del testo in grassetto per evitare ridimensionamenti
         font = self.label.font()
         font.setBold(True)
         fm = QFontMetrics(font)
         max_width = fm.horizontalAdvance(label_text) + 2
         self.label.setMinimumWidth(max_width)
         
-        # Partiamo con lo stile normale di default
         self.label.setStyleSheet("color: #dddddd; border: none; background: transparent; font-weight: normal;")
         self.label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         
@@ -105,10 +105,6 @@ class LabeledToggle(QFrame):
 
 
 class SegmentedControl(QWidget):
-    """
-    Un widget generico che presenta un gruppo di bottoni a segmenti.
-    Emette 'selectionChanged(int)' quando cambia l'indice selezionato.
-    """
     selectionChanged = pyqtSignal(int)
 
     def __init__(self, options, label_text=None, parent=None):
@@ -125,26 +121,25 @@ class SegmentedControl(QWidget):
         self.buttons = []
         self._currentIndex = 0
         
-        self.base_style = """
-            QPushButton { 
-                background-color: #333333; 
+        self.base_style = f"""
+            QPushButton {{ 
+                background-color: {Colors.HEX_BTN_BG}; 
                 color: #888; 
-                border: 1px solid #555; 
+                border: 1px solid {Colors.HEX_BORDER}; 
                 padding: 6px 12px; 
                 font-size: 11px; 
                 font-weight: bold;
                 border-radius: 0px;
-            }
-            QPushButton:hover { background-color: #404040; }
+            }}
+            QPushButton:hover {{ background-color: {Colors.HEX_BTN_HOVER}; }}
         """
-        self.active_style = "background-color: #f2c94c; color: #222; border: 1px solid #8a7522;"
+        self.active_style = f"background-color: {Colors.HEX_WARNING}; color: #222; border: 1px solid #8a7522;"
         
         for i, text in enumerate(options):
             btn = QPushButton(text)
             btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             
-            # Applichiamo bordi arrotondati solo agli estremi
             style = self.base_style
             if i == 0:
                 style += "QPushButton { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }"
@@ -179,8 +174,7 @@ class SegmentedControl(QWidget):
             
             if i == self._currentIndex:
                 style += "QPushButton { " + self.active_style + " }"
-                # Manteniamo il colore giallo anche al passaggio del mouse se il bottone è attivo
-                style += "QPushButton:hover { background-color: #f2c94c; }"
+                style += f"QPushButton:hover {{ background-color: {Colors.HEX_WARNING}; }}"
             
             btn.setStyleSheet(style)
             btn.blockSignals(False)

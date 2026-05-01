@@ -1,6 +1,8 @@
 from PyQt6.QtGui import (QCursor, QPixmap, QPainter, QColor, QPen, QBrush, QPainterPath)
 from PyQt6.QtCore import Qt, QRectF, QPointF
 
+from const_and_resources import Colors
+
 def create_tool_cursor(tool_id, editor_props, current_zoom):
     """
     Fabbrica e restituisce un QCursor personalizzato in base al tool selezionato.
@@ -21,13 +23,13 @@ def create_tool_cursor(tool_id, editor_props, current_zoom):
         is_chisel = True
     elif tool_id == "freetext":
         badge_text = "+MDS"
-        bg_color = "#0078d7"
+        bg_color = Colors.HEX_ACCENT
     elif tool_id == "textbox":
         badge_text = "+CDT"
-        bg_color = "#d35400"
+        bg_color = Colors.HANDLE_ORANGE.name() # Ricicliamo l'arancione usato in UI
     elif tool_id == "signature":
         badge_text = "+FIR"
-        bg_color = "#27ae60"
+        bg_color = Colors.HEX_SUCCESS
     else:
         # Fallback di sicurezza se arriva un tool_id sconosciuto
         return Qt.CursorShape.ArrowCursor
@@ -44,7 +46,7 @@ def create_tool_cursor(tool_id, editor_props, current_zoom):
     # 3. Disegno specifico del cursore
     if is_marker:
         thickness = editor_props.get("marker_thickness", 2)
-        m_color = editor_props.get("marker_color", QColor(0,0,0))
+        m_color = editor_props.get("marker_color", Colors.BLACK)
         visual_size = max(4, thickness * (current_zoom / 100.0))
         
         # Disegniamo il Crosshair fisso
@@ -66,7 +68,7 @@ def create_tool_cursor(tool_id, editor_props, current_zoom):
 
     elif is_chisel:
         thickness = editor_props.get("highlighter_thickness", 10)
-        h_color = editor_props.get("highlighter_color", QColor(255, 255, 0))
+        h_color = editor_props.get("highlighter_color", Colors.HIGHLIGHT_YELLOW)
         visual_w = max(2, thickness * (current_zoom / 100.0) * 0.3)
         visual_h = max(10, thickness * (current_zoom / 100.0))
         

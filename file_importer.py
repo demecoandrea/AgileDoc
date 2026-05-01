@@ -40,7 +40,7 @@ class FileImporter:
         image_paths_for_adjustment = []
         steps = 0
         
-        # 1. Analisi dei file in ingresso
+        # 1. Analisi dei file in ingresso.
         for url in urls:
             fp = url.toLocalFile()
             if not os.path.exists(fp): 

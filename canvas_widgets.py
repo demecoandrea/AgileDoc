@@ -4,23 +4,8 @@ from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QVBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
-# Importiamo l'elemento immagine per i controlli di tipo (isinstance)
+from const_and_resources import Colors, Styles
 from canvas_items import EditableImageItem
-
-# --- STILE GLOBALE UNIFICATO PER LE TOOLBAR FLOTTANTI ---
-UNIFIED_BTN_STYLE = """
-    QPushButton, QLabel {
-        background-color: #3a3a3a; 
-        color: #dddddd; 
-        border-radius: 4px; 
-        padding: 6px 3px; 
-        font-weight: bold; 
-        font-size: 14px; 
-        border: 1px solid #555555;
-    }
-    QPushButton:hover { background-color: #505050; border: 1px solid #777777; }
-    QPushButton:pressed { background-color: #2a2a2a; }
-"""
 
 class UndoSnackbar(QFrame):
     undo_requested = pyqtSignal()
@@ -28,13 +13,13 @@ class UndoSnackbar(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            QFrame { background-color: #2b2b2b; border-radius: 6px; border: 1px solid #4facfe; }
-            QLabel { color: white; font-size: 14px; font-weight: bold; border: none; background: transparent; }
-            QPushButton#undoBtn { color: #4facfe; font-weight: bold; background: transparent; border: none; padding: 0 10px; font-size: 14px; }
-            QPushButton#undoBtn:hover { text-decoration: underline; color: #73c2fb; }
-            QPushButton#closeBtn { color: #888888; font-weight: bold; background: transparent; border: none; font-size: 16px; }
-            QPushButton#closeBtn:hover { color: #ffffff; }
+        self.setStyleSheet(f"""
+            QFrame {{ background-color: {Colors.HEX_BG_DIALOG}; border-radius: 6px; border: 1px solid {Colors.HEX_ACCENT}; }}
+            QLabel {{ color: white; font-size: 14px; font-weight: bold; border: none; background: transparent; }}
+            QPushButton#undoBtn {{ color: {Colors.HEX_ACCENT}; font-weight: bold; background: transparent; border: none; padding: 0 10px; font-size: 14px; }}
+            QPushButton#undoBtn:hover {{ text-decoration: underline; color: #73c2fb; }}
+            QPushButton#closeBtn {{ color: #888888; font-weight: bold; background: transparent; border: none; font-size: 16px; }}
+            QPushButton#closeBtn:hover {{ color: #ffffff; }}
         """)
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(15)
@@ -75,7 +60,7 @@ class PageOutputModeWidget(QWidget):
         self.btn_mode = QPushButton("N")
         self.btn_mode.setToolTip("Forza modalità per l'intera pagina")
         self.btn_mode.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_mode.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_mode.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_mode.clicked.connect(self.toggle_mode)
         layout.addWidget(self.btn_mode)
 
@@ -83,9 +68,9 @@ class PageOutputModeWidget(QWidget):
         self.current_mode = mode_str
         self.btn_mode.setText(mode_str)
         if mode_str == "MIX": 
-            self.btn_mode.setStyleSheet(UNIFIED_BTN_STYLE + "QPushButton { color: #ffaa00; font-size: 11px; border: 1px solid #8a6a2c; }")
+            self.btn_mode.setStyleSheet(Styles.UNIFIED_BTN_STYLE + f"QPushButton {{ color: {Colors.HEX_WARNING}; font-size: 11px; border: 1px solid #8a6a2c; }}")
         else: 
-            self.btn_mode.setStyleSheet(UNIFIED_BTN_STYLE)
+            self.btn_mode.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
 
     def toggle_mode(self):
         items = [i for i in self.page_item.childItems() if isinstance(i, EditableImageItem)]
@@ -111,7 +96,7 @@ class PageInfoButton(QWidget):
         self.btn_info = QPushButton("ℹ️")
         self.btn_info.setToolTip("Dettagli contenuto e peso pagina")
         self.btn_info.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_info.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_info.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_info.clicked.connect(self.show_page_info)
         layout.addWidget(self.btn_info)
 
@@ -150,16 +135,16 @@ class PageNumberIndicator(QWidget):
         
         self.lbl_number = QLabel("1")
         self.lbl_number.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_number.setStyleSheet("""
-            QLabel {
+        self.lbl_number.setStyleSheet(f"""
+            QLabel {{
                 background-color: #4a3f12; 
-                color: #f2c94c; 
+                color: {Colors.HEX_WARNING}; 
                 border-radius: 4px; 
                 padding: 6px 3px; 
                 font-weight: bold; 
                 font-size: 14px; 
                 border: 1px solid #8a7522;
-            }
+            }}
         """)
         layout.addWidget(self.lbl_number)
         
@@ -179,7 +164,7 @@ class PageToolbar(QWidget):
         layout.setSpacing(4) 
         
         self.btn_add_above = QPushButton("📄⬆️")
-        self.btn_add_above.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_add_above.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_add_above.clicked.connect(lambda: self.canvas.add_page_at(insert_before=self.page_item))
         
         self.btn_edit = QPushButton("✏️")
@@ -187,23 +172,23 @@ class PageToolbar(QWidget):
         self.btn_edit.clicked.connect(lambda: self.canvas.toggle_editing_for_page(self.page_item))
         
         self.btn_rotate = QPushButton("🔄")
-        self.btn_rotate.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_rotate.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_rotate.clicked.connect(lambda: self.canvas.toggle_page_orientation(self.page_item))
         
         self.btn_up = QPushButton("▲")
-        self.btn_up.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_up.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_up.clicked.connect(lambda: self.canvas.move_page_up(self.page_item))
         
         self.btn_down = QPushButton("▼")
-        self.btn_down.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_down.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_down.clicked.connect(lambda: self.canvas.move_page_down(self.page_item))
         
         self.btn_delete = QPushButton("🗑️")
-        self.btn_delete.setStyleSheet(UNIFIED_BTN_STYLE + "QPushButton { background-color: #6a1c1c; } QPushButton:hover { background-color: #cc0000; }")
+        self.btn_delete.setStyleSheet(Styles.UNIFIED_BTN_STYLE + f"QPushButton {{ background-color: {Colors.HEX_DANGER}; }} QPushButton:hover {{ background-color: {Colors.HEX_DANGER_HOVER}; }}")
         self.btn_delete.clicked.connect(lambda: self.canvas.delete_page(self.page_item))
         
         self.btn_add_below = QPushButton("📄⬇️")
-        self.btn_add_below.setStyleSheet(UNIFIED_BTN_STYLE)
+        self.btn_add_below.setStyleSheet(Styles.UNIFIED_BTN_STYLE)
         self.btn_add_below.clicked.connect(lambda: self.canvas.add_page_at(insert_after=self.page_item))
         
         layout.addWidget(self.btn_add_above)
@@ -217,6 +202,6 @@ class PageToolbar(QWidget):
 
     def set_editing_state(self, is_editing):
         if is_editing: 
-            self.btn_edit.setStyleSheet(UNIFIED_BTN_STYLE + "QPushButton { background-color: #ffd700; color: black; border: 2px solid #b8860b; }")
+            self.btn_edit.setStyleSheet(Styles.UNIFIED_BTN_STYLE + "QPushButton { background-color: #ffd700; color: black; border: 2px solid #b8860b; }")
         else: 
-            self.btn_edit.setStyleSheet(UNIFIED_BTN_STYLE)
+            self.btn_edit.setStyleSheet(Styles.UNIFIED_BTN_STYLE)

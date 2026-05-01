@@ -2,13 +2,9 @@ import os
 import fitz  # PyMuPDF
 from PyQt6.QtCore import Qt, QByteArray, QBuffer, QIODevice
 
-# Importiamo le classi per poterle riconoscere tramite isinstance()
 from pdf_annotations import AnnotationFreeTextItem, AnnotationTextBoxItem, AnnotationPathItem
 from canvas_items import EditableImageItem
-
-# Costanti trasferite dal file principale
-A4_WIDTH = 595.0
-A4_HEIGHT = 842.0
+from const_and_resources import Dimensions
 
 class PdfExporter:
     @staticmethod
@@ -24,8 +20,8 @@ class PdfExporter:
             open_src_docs = {}
             
             for cp in pages:
-                pw = A4_HEIGHT if cp.is_landscape else A4_WIDTH
-                ph = A4_WIDTH if cp.is_landscape else A4_HEIGHT
+                pw = Dimensions.A4_HEIGHT if cp.is_landscape else Dimensions.A4_WIDTH
+                ph = Dimensions.A4_WIDTH if cp.is_landscape else Dimensions.A4_HEIGHT
                 
                 out_p = out_pdf.new_page(width=pw, height=ph)
                 out_p.draw_rect(fitz.Rect(0, 0, pw, ph), color=(1,1,1), fill=(1,1,1))

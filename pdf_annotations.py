@@ -2,8 +2,7 @@ from PyQt6.QtWidgets import QGraphicsTextItem, QGraphicsPathItem, QGraphicsItem,
 from PyQt6.QtGui import QColor, QBrush, QPen, QFont, QPainterPath, QAction, QPainterPathStroker
 from PyQt6.QtCore import Qt, QRectF, QPointF, QTimer
 
-# Dimensione fissa degli handle in pixel di schermo — deve corrispondere a _HANDLE_PX in canvas_editor.py
-_HANDLE_PX = 20
+from const_and_resources import Dimensions, Colors, Strings, Styles
 
 class AnnotationTextBoxItem(QGraphicsRectItem):
     def __init__(self, rect, parent_page=None):
@@ -12,9 +11,9 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         if parent_page:
             self.setParentItem(parent_page)
             
-        self.bg_color = QColor(220, 220, 220, 255)
-        self.border_color = QColor(0, 0, 0, 255)
-        self.default_text_color = QColor(0, 0, 0)
+        self.bg_color = QColor(Colors.TEXT_DEFAULT_BG)
+        self.border_color = QColor(Colors.BLACK)
+        self.default_text_color = QColor(Colors.BLACK)
         
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape |
                       QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
@@ -42,7 +41,7 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
                 if self_.parentItem():
                     self_.parentItem().setSelected(False)
                 testo = self_.toPlainText().strip()
-                if not testo or testo == "Inserisci testo...":
+                if not testo or testo == Strings.DEFAULT_TEXTBOX_TEXT:
                     if self_.scene() and self_.parentItem():
                         self_.scene().removeItem(self_.parentItem())
                 elif self_.scene() and self_.scene().views():
@@ -53,7 +52,7 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
                     self_.parentItem().start_editing()
                 super().mouseDoubleClickEvent(event)
         
-        self.text_item = ChildText("Inserisci testo...", self)
+        self.text_item = ChildText(Strings.DEFAULT_TEXTBOX_TEXT, self)
         self.text_item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.text_item.setDefaultTextColor(self.default_text_color)
         font = QFont("Helvetica", 12)
@@ -72,7 +71,7 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
     def start_editing(self):
         self.text_item.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
         self.text_item.setFocus()
-        if self.text_item.toPlainText() == "Inserisci testo...":
+        if self.text_item.toPlainText() == Strings.DEFAULT_TEXTBOX_TEXT:
             self.text_item.setPlainText("")
 
     def _update_text_layout(self):
@@ -144,7 +143,7 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
             painter.save()
             sel_pad = 3
             sel_rect = rect.adjusted(-sel_pad, -sel_pad, sel_pad, sel_pad)
-            pen = QPen(QColor(0, 150, 255))
+            pen = QPen(Colors.SELECTION_BLUE)
             pen.setCosmetic(True)
             pen.setWidth(2)
             pen.setStyle(Qt.PenStyle.DashLine)
@@ -175,11 +174,10 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         sel_pad = 3
         sel_rect = rect.adjusted(-sel_pad, -sel_pad, sel_pad, sel_pad)
         
-        # Hit test impeccabile in coordinate schermo (risolve i bug di scala)
         epos_vp = view.mapFromScene(self.mapToScene(event.pos()))
-        epos_vp_f = QPointF(epos_vp) # <-- CONVERSIONE FIX
+        epos_vp_f = QPointF(epos_vp) 
         br = view.mapFromScene(self.mapToScene(sel_rect.bottomRight()))
-        H = float(_HANDLE_PX)
+        H = float(Dimensions.HANDLE_PX)
         
         in_resize = not isinstance(self, AnnotationFreeTextItem) and QRectF(br.x() - H, br.y() - H, H, H).contains(epos_vp_f)
         
@@ -237,21 +235,21 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
             self.setSelected(True)
             
         menu = QMenu()
-        menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+        menu.setStyleSheet(Styles.MENU_STYLE)
         
         canvas_view = self.scene().views()[0] if self.scene() and self.scene().views() else None
         if canvas_view:
-            action_copy = QAction("📄 Copia", menu)
+            action_copy = QAction(Strings.MENU_COPY, menu)
             action_copy.triggered.connect(canvas_view.action_copy)
             menu.addAction(action_copy)
             
-            action_paste = QAction("📋 Incolla", menu)
+            action_paste = QAction(Strings.MENU_PASTE, menu)
             action_paste.setEnabled(len(canvas_view._internal_clipboard) > 0)
             action_paste.triggered.connect(canvas_view.action_paste)
             menu.addAction(action_paste)
             menu.addSeparator()
 
-        action_delete = QAction("🗑️ Elimina Elemento", menu)
+        action_delete = QAction(Strings.MENU_DELETE, menu)
         action_delete.triggered.connect(lambda: [self.scene().removeItem(item) for item in self.scene().selectedItems()] and (self.scene().views()[0].save_workspace() if self.scene() and self.scene().views() else None))
         menu.addAction(action_delete)
         menu.exec(event.screenPos())
@@ -300,10 +298,10 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         self.start_editing()
 
 class AnnotationFreeTextItem(AnnotationTextBoxItem):
-    def __init__(self, text="Inserisci testo...", parent_page=None):
+    def __init__(self, text=Strings.DEFAULT_TEXTBOX_TEXT, parent_page=None):
         super().__init__(QRectF(0, 0, 100, 30), parent_page)
-        self.bg_color = QColor(255, 255, 255, 0)
-        self.border_color = QColor(0, 0, 0, 0)
+        self.bg_color = QColor(Colors.TRANSPARENT)
+        self.border_color = QColor(Colors.TRANSPARENT)
         self.wrap = False
         self.text_item.document().setDocumentMargin(0)
         self.text_item.setPlainText(text)
@@ -355,7 +353,7 @@ class AnnotationPathItem(QGraphicsPathItem):
         if parent_page:
             self.setParentItem(parent_page)
             
-        self.color = QColor(255, 255, 0)
+        self.color = QColor(Colors.HIGHLIGHT_YELLOW)
         self.thickness = 10
         self.is_highlighter = True
         
@@ -370,7 +368,6 @@ class AnnotationPathItem(QGraphicsPathItem):
         if path.isEmpty():
             return super().shape()
             
-        # Calcoliamo la traccia "stroked"
         stroker = QPainterPathStroker()
         stroker.setWidth(max(20, self.thickness))
         if self.is_highlighter:
@@ -380,7 +377,6 @@ class AnnotationPathItem(QGraphicsPathItem):
         stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         stroked_path = stroker.createStroke(path)
         
-        # Se selezionato, l'area cliccabile è l'intero rettangolo (evita crash ricorsione)
         if self.is_editable and self.isSelected():
             rect_path = QPainterPath()
             rect_path.addRect(stroked_path.boundingRect())
@@ -407,7 +403,6 @@ class AnnotationPathItem(QGraphicsPathItem):
     def update_pen(self):
         pen = QPen(self.color, self.thickness)
         
-        # Simula la punta a scalpello per l'evidenziatore
         if self.is_highlighter:
             pen.setCapStyle(Qt.PenCapStyle.FlatCap)
             self.setOpacity(0.5)
@@ -452,7 +447,7 @@ class AnnotationPathItem(QGraphicsPathItem):
         super().paint(painter, option, widget)
         if self.is_editable and self.isSelected():
             rect = self.boundingRect()
-            pen = QPen(QColor(0, 150, 255))
+            pen = QPen(Colors.SELECTION_BLUE)
             pen.setCosmetic(True)
             pen.setWidth(2)
             pen.setStyle(Qt.PenStyle.DashLine)
@@ -476,21 +471,21 @@ class AnnotationPathItem(QGraphicsPathItem):
             self.setSelected(True)
             
         menu = QMenu()
-        menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;")
+        menu.setStyleSheet(Styles.MENU_STYLE)
         
         canvas_view = self.scene().views()[0] if self.scene() and self.scene().views() else None
         if canvas_view:
-            action_copy = QAction("📄 Copia", menu)
+            action_copy = QAction(Strings.MENU_COPY, menu)
             action_copy.triggered.connect(canvas_view.action_copy)
             menu.addAction(action_copy)
             
-            action_paste = QAction("📋 Incolla", menu)
+            action_paste = QAction(Strings.MENU_PASTE, menu)
             action_paste.setEnabled(len(canvas_view._internal_clipboard) > 0)
             action_paste.triggered.connect(canvas_view.action_paste)
             menu.addAction(action_paste)
             menu.addSeparator()
         
-        action_delete = QAction("🗑️ Elimina Disegno", menu)
+        action_delete = QAction(Strings.MENU_DELETE, menu)
         action_delete.triggered.connect(self._delete_selected)
         menu.addAction(action_delete)
         

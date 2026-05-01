@@ -10,19 +10,16 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt6.QtGui import QPainter, QPixmap, QImage, QPen, QBrush, QColor, QPolygonF
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPointF, QRectF, QTimer, QByteArray
 
-# Importa il nostro widget personalizzato!
 from custom_widgets import LabeledToggle, SegmentedControl
 from filter_dialog import FilterSettingsDialog
+from const_and_resources import Dimensions, Colors, Styles
 
 GLOBAL_YOLO_MODEL = None
 ENABLE_ACTIVE_LEARNING = True
 
-
-
 # --- THREAD 1: PREPARAZIONE IMMAGINI (Producer) ---
 # Legge, applica il padding, salva su disco e passa i dati alla coda
 class PrepWorker(QThread):
-    # Segnale: idx, path_temp, padding_info (pad_x, pad_y, w, h)
     image_ready = pyqtSignal(int, str, dict)
     finished_all = pyqtSignal()
 
@@ -54,9 +51,7 @@ class PrepWorker(QThread):
 
             pad_info = {'pad_x': pad_x, 'pad_y': pad_y, 'new_w': new_w, 'new_h': new_h}
             
-            # Segnala alla UI che l'immagine è pronta da visualizzare
             self.image_ready.emit(i, out_path, pad_info)
-            # Inserisce il task nella coda per YOLO
             self.yolo_queue.put((i, out_path))
 
         self.finished_all.emit()
@@ -65,8 +60,8 @@ class PrepWorker(QThread):
 # --- THREAD 2: INFERENZA YOLO (Consumer) ---
 # Legge dalla coda, carica il modello (se serve), analizza e restituisce i punti
 class YoloWorker(QThread):
-    progress = pyqtSignal(int, int) # Rilevamento in corso... (corrente, totale)
-    result_ready = pyqtSignal(int, list) # idx, punti [se vuota = fallito]
+    progress = pyqtSignal(int, int) 
+    result_ready = pyqtSignal(int, list) 
     finished_all = pyqtSignal()
 
     def __init__(self, yolo_queue, total_images, res_dir):
@@ -83,7 +78,6 @@ class YoloWorker(QThread):
             model_path = os.path.join(self.res_dir, "best.onnx")
             if os.path.exists(model_path):
                 try:
-                    # Carichiamo il modello ONNX invece di quello PyTorch
                     GLOBAL_YOLO_MODEL = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
                 except Exception as e:
                     print(f"Errore caricamento modello ONNX: {e}")
@@ -97,10 +91,7 @@ class YoloWorker(QThread):
         processed = 0
         input_name = GLOBAL_YOLO_MODEL.get_inputs()[0].name
         
-        # Dimensione input attesa dal modello
         input_shape = GLOBAL_YOLO_MODEL.get_inputs()[0].shape
-        # Se il modello ha input dinamici (es. ['batch', 3, 'height', 'width']), 
-        # proviamo a usare 1280 come fallback se non è specificato nel modello esportato
         input_h = input_shape[2] if isinstance(input_shape[2], int) else 1280
         input_w = input_shape[3] if isinstance(input_shape[3], int) else 1280
 
@@ -118,24 +109,20 @@ class YoloWorker(QThread):
                 if img is not None:
                     orig_h, orig_w = img.shape[:2]
                     
-                    # Pre-processing per ONNX
                     img_resized = cv2.resize(img, (input_w, input_h))
-                    img_input = img_resized.transpose(2, 0, 1) # HWC -> CHW
+                    img_input = img_resized.transpose(2, 0, 1) 
                     img_input = np.expand_dims(img_input, axis=0).astype(np.float32) / 255.0
                     
-                    # Run Inference
                     outputs = GLOBAL_YOLO_MODEL.run(None, {input_name: img_input})
                     
-                    # Post-processing per YOLOv8 Keypoints (output tipico: [1, 51, 8400] o simile)
-                    output = outputs[0][0] # [N_features, 8400]
+                    output = outputs[0][0] 
                     
                     conf_scores = output[4]
                     best_idx = np.argmax(conf_scores)
                     if conf_scores[best_idx] > 0.25:
-                        # Estraiamo i 4 punti (8 coordinate totali a partire dall'indice 5)
                         kpts = output[5:, best_idx]
                         raw_points = []
-                        for i in range(0, 12, 3): # 4 punti * (x, y, conf) = 12 valori
+                        for i in range(0, 12, 3): 
                             px = kpts[i] * (orig_w / input_w)
                             py = kpts[i+1] * (orig_h / input_h)
                             raw_points.append((float(px), float(py)))
@@ -171,7 +158,10 @@ class DraggableCorner(QGraphicsItem):
 
     def paint(self, painter, option, widget=None):
         c = QPointF(0, 0)
-        painter.setBrush(QBrush(QColor(0, 255, 0, 40)))
+        
+        bg_color = QColor(Colors.HEX_SUCCESS)
+        bg_color.setAlpha(40)
+        painter.setBrush(QBrush(bg_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(self.boundingRect())
         
@@ -206,12 +196,11 @@ class PopupRegolazioneAvanzata(QDialog):
         self.total_images = len(image_paths)
         self.current_idx = 0
         
-        # Strutture dati centralizzate
-        self.padded_data = {}    # {idx: {"path": str, "info": dict}}
-        self.default_points = {} # {idx: [(x,y), ...]}
-        self.yolo_points = {}    # {idx: [(x,y), ...]}
-        self.user_points = {}    # {idx: [(x,y), ...]}
-        self.user_modified = set() # Set di indici modificati manualmente
+        self.padded_data = {}    
+        self.default_points = {} 
+        self.yolo_points = {}    
+        self.user_points = {}    
+        self.user_modified = set() 
 
         if existing_corners:
             for idx, pts in existing_corners.items():
@@ -230,9 +219,8 @@ class PopupRegolazioneAvanzata(QDialog):
 
         self.config_file = os.path.join(self.conf_dir, "scanner_pro_config.json")
 
-        # --- DEFINIZIONE ALTEZZE DEI BOTTONI DELLE TOOLBAR ---
-        self.L2_HEIGHT = 27  # Toolbar sotto i pannelli (sinistra/destra)
-        self.L1_HEIGHT = 30  # Barra generale in basso (Navigazione + Azioni)
+        self.L2_HEIGHT = Dimensions.L2_HEIGHT
+        self.L1_HEIGHT = Dimensions.L1_HEIGHT
 
         self.setup_ui()
         self.load_config() 
@@ -240,7 +228,6 @@ class PopupRegolazioneAvanzata(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        # Forza lo splitter a 50/50 appena la finestra è visibile e ha le dimensioni finali
         w = self.width()
         self.splitter.setSizes([w // 2, w // 2])
         QTimer.singleShot(50, self.fit_both_views)
@@ -254,18 +241,12 @@ class PopupRegolazioneAvanzata(QDialog):
         
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setHandleWidth(4)
-        # Impediamo all'utente di ridimensionare i pannelli manualmente 
-        # dato che vogliamo un layout fisso 50/50
         self.splitter.setChildrenCollapsible(False)
         self.splitter.splitterMoved.connect(lambda: self.splitter.setSizes([self.width()//2, self.width()//2]))
         
-        # STILE CORNICE E BOTTONI
-        frame_style = "QFrame#ImageFrame { border: 3px solid #3a3a3a; border-radius: 4px; background-color: #1a1a1a; }"
-        btn_style = "QPushButton { background-color: #3a3a3a; color: white; border-radius: 4px; padding: 6px 15px; font-weight: bold; border: 1px solid #555; height: 20px; } QPushButton:hover { background-color: #505050; } QPushButton:disabled { background-color: #222; color: #555; }"
-
         # --- SINISTRA ---
         self.left_frame = QFrame(objectName="ImageFrame")
-        self.left_frame.setStyleSheet(frame_style)
+        self.left_frame.setStyleSheet(Styles.FRAME_STYLE)
         left_layout = QVBoxLayout(self.left_frame)
         left_layout.setContentsMargins(2, 2, 2, 2)
         left_layout.setSpacing(0)
@@ -275,7 +256,7 @@ class PopupRegolazioneAvanzata(QDialog):
         self.left_view.setScene(self.left_scene)
         self.left_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.left_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        self.left_view.setStyleSheet("background-color: #222222; border: none;")
+        self.left_view.setStyleSheet(f"background-color: {Colors.HEX_BG_DIALOG}; border: none;")
         self.left_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.left_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.left_view.viewport().installEventFilter(self)
@@ -290,22 +271,22 @@ class PopupRegolazioneAvanzata(QDialog):
         
         self.btn_reset = QPushButton("🔄 Reimposta Rilevamento")
         self.btn_reset.setToolTip("Riavvia l'AI per questa immagine")
-        self.btn_reset.setStyleSheet(btn_style)
+        self.btn_reset.setStyleSheet(Styles.SCANNER_BTN_STYLE)
         self.btn_reset.setFixedHeight(self.L2_HEIGHT)
         self.btn_reset.clicked.connect(self.reset_to_yolo)
         
         self.btn_reset_corners = QPushButton("📐 Reset Angoli")
-        self.btn_reset_corners.setStyleSheet(btn_style)
+        self.btn_reset_corners.setStyleSheet(Styles.SCANNER_BTN_STYLE)
         self.btn_reset_corners.setFixedHeight(self.L2_HEIGHT)
         self.btn_reset_corners.clicked.connect(self.reset_to_corners)
         
         self.btn_rot_ccw = QPushButton("↺ 90°")
-        self.btn_rot_ccw.setStyleSheet(btn_style)
+        self.btn_rot_ccw.setStyleSheet(Styles.SCANNER_BTN_STYLE)
         self.btn_rot_ccw.setFixedHeight(self.L2_HEIGHT)
         self.btn_rot_ccw.clicked.connect(lambda: self.rotate_image(-90))
         
         self.btn_rot_cw = QPushButton("90° ↻")
-        self.btn_rot_cw.setStyleSheet(btn_style)
+        self.btn_rot_cw.setStyleSheet(Styles.SCANNER_BTN_STYLE)
         self.btn_rot_cw.setFixedHeight(self.L2_HEIGHT)
         self.btn_rot_cw.clicked.connect(lambda: self.rotate_image(90))
         
@@ -319,7 +300,7 @@ class PopupRegolazioneAvanzata(QDialog):
 
         # --- DESTRA ---
         self.right_frame = QFrame(objectName="ImageFrame")
-        self.right_frame.setStyleSheet(frame_style)
+        self.right_frame.setStyleSheet(Styles.FRAME_STYLE)
         right_layout = QVBoxLayout(self.right_frame)
         right_layout.setContentsMargins(2, 2, 2, 2)
         right_layout.setSpacing(0)
@@ -329,7 +310,7 @@ class PopupRegolazioneAvanzata(QDialog):
         self.right_view.setScene(self.right_scene)
         self.right_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.right_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        self.right_view.setStyleSheet("background-color: #222222; border: none;")
+        self.right_view.setStyleSheet(f"background-color: {Colors.HEX_BG_DIALOG}; border: none;")
         self.right_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.right_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
@@ -356,7 +337,7 @@ class PopupRegolazioneAvanzata(QDialog):
         self.btn_filter_settings = QPushButton("⚙")
         self.btn_filter_settings.setFixedSize(self.L2_HEIGHT, self.L2_HEIGHT)
         self.btn_filter_settings.setToolTip("Impostazioni Filtro")
-        self.btn_filter_settings.setStyleSheet(btn_style + "QPushButton { padding: 0px; font-size: 18px; }")
+        self.btn_filter_settings.setStyleSheet(Styles.SCANNER_BTN_STYLE + "QPushButton { padding: 0px; font-size: 18px; }")
         self.btn_filter_settings.clicked.connect(self.open_filter_settings)
 
         right_bottom_bar.addWidget(self.ratio_group)
@@ -372,12 +353,10 @@ class PopupRegolazioneAvanzata(QDialog):
         bottom_nav_layout = QHBoxLayout(bottom_nav_container)
         bottom_nav_layout.setContentsMargins(0, 0, 5, 0)
 
-        # Usiamo 3 sezioni per centrare il gruppo di navigazione perfettamente
         left_spacer = QWidget()
         left_spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         bottom_nav_layout.addWidget(left_spacer)
 
-        # Gruppo Navigazione (CENTRATO)
         nav_group = QWidget()
         nav_layout = QHBoxLayout(nav_group)
         nav_layout.setContentsMargins(0, 0, 0, 0)
@@ -385,17 +364,17 @@ class PopupRegolazioneAvanzata(QDialog):
 
         self.btn_prev = QPushButton("◀ Precedente")
         self.btn_prev.setEnabled(False)
-        self.btn_prev.setStyleSheet(btn_style)
+        self.btn_prev.setStyleSheet(Styles.SCANNER_BTN_STYLE)
         self.btn_prev.setFixedHeight(self.L1_HEIGHT)
         self.btn_prev.clicked.connect(self.prev_image)
         
         self.lbl_page_counter = QLabel("1 / 1")
-        self.lbl_page_counter.setStyleSheet("color: #f2c94c; font-weight: bold; font-size: 15px; min-width: 80px;")
+        self.lbl_page_counter.setStyleSheet(f"color: {Colors.HEX_WARNING}; font-weight: bold; font-size: 15px; min-width: 80px;")
         self.lbl_page_counter.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self.btn_next = QPushButton("Successiva ▶")
         self.btn_next.setEnabled(False)
-        self.btn_next.setStyleSheet(btn_style)
+        self.btn_next.setStyleSheet(Styles.SCANNER_BTN_STYLE)
         self.btn_next.setFixedHeight(self.L1_HEIGHT)
         self.btn_next.clicked.connect(self.next_image)
 
@@ -404,7 +383,6 @@ class PopupRegolazioneAvanzata(QDialog):
         nav_layout.addWidget(self.btn_next)
         bottom_nav_layout.addWidget(nav_group)
 
-        # Gruppo Azioni (A DESTRA)
         actions_wrapper = QWidget()
         actions_wrapper.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         actions_layout = QHBoxLayout(actions_wrapper)
@@ -412,13 +390,13 @@ class PopupRegolazioneAvanzata(QDialog):
         actions_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         self.btn_cancel = QPushButton("Annulla")
-        self.btn_cancel.setStyleSheet(btn_style + "QPushButton { background-color: #6a1a1a; border: 1px solid #8a2a2a; } QPushButton:hover { background-color: #8a2a2a; }")
+        self.btn_cancel.setStyleSheet(Styles.SCANNER_BTN_STYLE + f"QPushButton {{ background-color: {Colors.HEX_DANGER}; border: 1px solid #8a2a2a; }} QPushButton:hover {{ background-color: {Colors.HEX_DANGER_HOVER}; }}")
         self.btn_cancel.setFixedHeight(self.L1_HEIGHT)
         self.btn_cancel.clicked.connect(self.reject_changes)
 
         self.btn_done = QPushButton(f"Rilevamento... (0/{self.total_images})")
         self.btn_done.setEnabled(False)
-        self.btn_done.setStyleSheet(btn_style + "QPushButton { background-color: #1a6a1a; border: 1px solid #2a8a2a; } QPushButton:hover { background-color: #2a8a2a; }")
+        self.btn_done.setStyleSheet(Styles.SCANNER_BTN_STYLE + "QPushButton { background-color: #1a6a1a; border: 1px solid #2a8a2a; } QPushButton:hover { background-color: #2a8a2a; }")
         self.btn_done.setFixedHeight(self.L1_HEIGHT)
         self.btn_done.clicked.connect(self.accept_changes)
 
@@ -603,12 +581,16 @@ class PopupRegolazioneAvanzata(QDialog):
             if isinstance(item, DraggableCorner) or (isinstance(item, QGraphicsItem) and item.zValue() == 1):
                 self.left_scene.removeItem(item)
         self.corners = []
-        pen = QPen(QColor(0, 170, 255, 200), 1)
+        
+        pen_color = QColor(Colors.SELECTION_BLUE)
+        pen_color.setAlpha(200)
+        pen = QPen(pen_color, 1)
         pen.setCosmetic(True)
+        
         self.polygon_item = self.left_scene.addPolygon(QPolygonF(), pen)
         self.polygon_item.setZValue(1) 
         for x, y in points:
-            corner = DraggableCorner(color=QColor(0, 255, 0), callback=self.on_corner_moved)
+            corner = DraggableCorner(color=QColor(Colors.HEX_SUCCESS), callback=self.on_corner_moved)
             corner.setPos(x, y) 
             corner.setZValue(2) 
             self.left_scene.addItem(corner)
@@ -649,12 +631,12 @@ class PopupRegolazioneAvanzata(QDialog):
         height_right, height_left = np.linalg.norm(tr - br), np.linalg.norm(tl - bl)
         maxHeight = max(int(height_right), int(height_left))
         
-        if mode == 0: # Originale
+        if mode == 0: 
             return maxWidth, maxHeight
-        elif mode == 1: # A4
+        elif mode == 1: 
             if maxHeight >= maxWidth * 0.7: return maxWidth, int(maxWidth * 1.4142)
             else: return maxWidth, int(maxWidth / 1.4142)
-        elif mode == 2: # Dinamica
+        elif mode == 2: 
             minWidth = min(width_bottom, width_top)
             if minWidth > 0 and maxWidth > minWidth:
                 stretch_factor = min(maxWidth / minWidth, 1.8)
@@ -677,9 +659,7 @@ class PopupRegolazioneAvanzata(QDialog):
             warped = cv2.cvtColor(warped, cv2.COLOR_GRAY2RGB)
         else: warped = cv2.cvtColor(warped, cv2.COLOR_BGR2RGB)
         h, w, ch = warped.shape
-        # Fix per costruttore QImage in PyQt6 (non accetta keyword arguments per i dati)
         qt_img = QImage(warped.data, w, h, ch * w, QImage.Format.Format_RGB888)
-        # Fix per QImage data pointer lifetime
         self._qt_img_preview = qt_img 
         pixmap = QPixmap.fromImage(qt_img)
         self.right_pixmap_item.setPixmap(pixmap)

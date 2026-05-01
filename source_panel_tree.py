@@ -4,12 +4,14 @@ from PyQt6.QtCore import Qt, QDir, QMimeData, QUrl
 import os
 import fitz  # PyMuPDF!
 
+from const_and_resources import Colors
+
 class SneakPeekWidget(QLabel):
     """Finestra flottante borderless per l'anteprima rapida, configurabile"""
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
-        self.setStyleSheet("border: 2px solid #4facfe; background-color: #1e1e1e; color: white; padding: 5px;")
+        self.setStyleSheet(f"border: 2px solid {Colors.HEX_ACCENT}; background-color: {Colors.HEX_BG_DARK}; color: white; padding: 5px;")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.current_path = ""
         
@@ -22,13 +24,13 @@ class SneakPeekWidget(QLabel):
         
         # --- 1. Calcolo Dimensioni Massime ---
         if self.preview_size_mode == "Fissa":
-            max_h = int(main_window_rect.height() * 0.70) # 70% dell'altezza della finestra (lascia 15% sopra e sotto)
-            max_w = main_window_rect.right() - global_pos.x() - 40 # Dalla freccia del mouse al bordo destro
-            if max_w < 150: max_w = 150 # Limite di sicurezza se il mouse è tutto a destra
+            max_h = int(main_window_rect.height() * 0.70)
+            max_w = main_window_rect.right() - global_pos.x() - 40 
+            if max_w < 150: max_w = 150 
         else:
             sizes = {"Piccola": 200, "Media": 400, "Grande": 600}
             max_h = sizes.get(self.preview_size_mode, 400)
-            max_w = max_h # Nelle altre modalità il bounding box è un quadrato
+            max_w = max_h 
             
         # --- 2. Caricamento e Scalatura ---
         if ext in ['.jpg', '.jpeg', '.png']:
@@ -44,7 +46,7 @@ class SneakPeekWidget(QLabel):
                 doc = fitz.open(path)
                 if len(doc) > 0:
                     page = doc.load_page(0)
-                    pix = page.get_pixmap(dpi=100) # Alzato a 100 DPI per una resa migliore sulle preview grandi
+                    pix = page.get_pixmap(dpi=100) 
                     
                     fmt = QImage.Format.Format_RGBA8888 if pix.alpha else QImage.Format.Format_RGB888
                     qimg = QImage(pix.samples, pix.width, pix.height, pix.stride, fmt)
@@ -64,16 +66,13 @@ class SneakPeekWidget(QLabel):
         target_x = global_pos.x() + 20
         
         if self.preview_size_mode == "Fissa":
-            # Modalità Fissa: Si allinea al 15% dall'alto della finestra principale
             target_y = main_window_rect.top() + int(main_window_rect.height() * 0.15)
         else:
-            # Calcolo basato sulla metà ASSOLUTA dello schermo
             if self.dynamic_position and global_pos.y() > screen_rect.center().y():
-                target_y = global_pos.y() - self.height() - 15 # Disegna SOPRA il mouse
+                target_y = global_pos.y() - self.height() - 15 
             else:
-                target_y = global_pos.y() + 15 # Disegna SOTTO il mouse
+                target_y = global_pos.y() + 15 
                 
-            # Prevenzione fuori-bordo schermo (alto e basso)
             if target_y < screen_rect.top():
                 target_y = screen_rect.top() + 10
             elif target_y + self.height() > screen_rect.bottom():
@@ -136,7 +135,6 @@ class SourcePanelTree(QTreeView):
             if index.isValid() and index.column() == 0 and not self.file_model.isDir(index):
                 file_path = self.file_model.filePath(index)
                 
-                # Otteniamo le coordinate assolute
                 global_pos = self.viewport().mapToGlobal(event.pos())
                 screen_rect = self.screen().availableGeometry()
                 main_window_rect = self.window().geometry()
@@ -176,7 +174,7 @@ class SourcePanelTree(QTreeView):
         drag.exec(supported_actions)
     
     def contextMenuEvent(self, event):
-        from PyQt6.QtWidgets import QStyle # Assicurati che QStyle sia importato se non lo era
+        from PyQt6.QtWidgets import QStyle 
         
         indexes = self.selectedIndexes()
         if not indexes: 
@@ -184,11 +182,10 @@ class SourcePanelTree(QTreeView):
             
         menu = QMenu(self)
         
-        # Stile personalizzato che gestisce correttamente l'hover (:selected)
-        menu.setStyleSheet("""
-            QMenu { background-color: #2a2a2a; border: 1px solid #555; }
-            QMenu::item { padding: 5px 25px 5px 25px; color: #ff5555; font-weight: bold; }
-            QMenu::item:selected { background-color: #4a4a4a; color: #ff8888; }
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: {Colors.HEX_BG_LIGHTER}; border: 1px solid {Colors.HEX_BORDER}; }}
+            QMenu::item {{ padding: 5px 25px 5px 25px; color: {Colors.HEX_DANGER}; font-weight: bold; }}
+            QMenu::item:selected {{ background-color: {Colors.HEX_BTN_HOVER}; color: #ff8888; }}
         """)
         
         icon_delete = self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)

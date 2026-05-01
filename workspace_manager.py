@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor, QImageReader, QPixmap
 
 from pdf_annotations import AnnotationFreeTextItem, AnnotationTextBoxItem, AnnotationPathItem
 from canvas_items import EditableImageItem
+from const_and_resources import Colors
 
 class WorkspaceManager:
     @staticmethod
@@ -102,9 +103,9 @@ class WorkspaceManager:
         elif itype in ["freetext", "text"]: # text è per compatibilità con vecchi salvataggi
             i = AnnotationFreeTextItem(text=data.get("text", ""), parent_page=page)
             i.setPos(new_x, new_y)
-            i.bg_color = QColor(data.get("bg_color", "#00ffffff"))
-            i.border_color = QColor(data.get("border_color", "#00000000"))
-            i.setDefaultTextColor(QColor(data.get("text_color", "#ff000000")))
+            i.bg_color = QColor(data.get("bg_color", Colors.FREETEXT_DEFAULT_BG.name(QColor.NameFormat.HexArgb)))
+            i.border_color = QColor(data.get("border_color", Colors.TRANSPARENT.name(QColor.NameFormat.HexArgb)))
+            i.setDefaultTextColor(QColor(data.get("text_color", Colors.BLACK.name(QColor.NameFormat.HexArgb))))
             i.set_font_properties(
                 family=data.get("font_family", "Helvetica"), 
                 size=data.get("font_size", 12), 
@@ -120,9 +121,9 @@ class WorkspaceManager:
             i = AnnotationTextBoxItem(QRectF(0, 0, w, h), parent_page=page)
             i.setPos(new_x, new_y)
             i.text_item.setPlainText(data.get("text", ""))
-            i.bg_color = QColor(data.get("bg_color", "#dcdcdc"))
-            i.border_color = QColor(data.get("border_color", "#000000"))
-            i.text_item.setDefaultTextColor(QColor(data.get("text_color", "#000000")))
+            i.bg_color = QColor(data.get("bg_color", Colors.TEXT_DEFAULT_BG.name(QColor.NameFormat.HexArgb)))
+            i.border_color = QColor(data.get("border_color", Colors.BLACK.name(QColor.NameFormat.HexArgb)))
+            i.text_item.setDefaultTextColor(QColor(data.get("text_color", Colors.BLACK.name(QColor.NameFormat.HexArgb))))
             i.set_font_properties(
                 family=data.get("font_family", "Helvetica"), 
                 size=data.get("font_size", 12), 
@@ -138,7 +139,7 @@ class WorkspaceManager:
         elif itype == "path":
             i = AnnotationPathItem(parent_page=page)
             i.setPos(new_x, new_y)
-            i.color = QColor(data.get("color", "#ff000000"))
+            i.color = QColor(data.get("color", Colors.BLACK.name(QColor.NameFormat.HexArgb)))
             i.thickness = data.get("thickness", 2)
             i.is_highlighter = data.get("is_highlighter", False)
             for pt in data.get("points", []):
@@ -156,7 +157,7 @@ class WorkspaceManager:
             pd = {"is_landscape": p.is_landscape, "items": []}
             for item in p.childItems():
                 item_data = WorkspaceManager.serialize_item(item)
-                if item_data.get("type"): # Salviamo solo se il tipo è riconosciuto
+                if item_data.get("type"): 
                     pd["items"].append(item_data)
             state["pages"].append(pd)
             

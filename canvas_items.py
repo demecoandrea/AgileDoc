@@ -4,11 +4,8 @@ from PyQt6.QtGui import (QColor, QBrush, QPen, QTransform, QAction)
 from PyQt6.QtCore import Qt, QRectF, QPointF
 import math
 
-A4_WIDTH = 595.0
-A4_HEIGHT = 842.0
-
-# Dimensione fissa degli handle di editing in pixel di schermo.
-_HANDLE_PX = 20
+# Importiamo le risorse centralizzate
+from const_and_resources import Dimensions, Colors, Styles, Strings
 
 class PageItem(QGraphicsRectItem):
     def __init__(self, y_offset, is_landscape=False):
@@ -23,8 +20,8 @@ class PageItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
 
     def _update_rect(self): 
-        w = A4_HEIGHT if self.is_landscape else A4_WIDTH
-        h = A4_WIDTH if self.is_landscape else A4_HEIGHT
+        w = Dimensions.A4_HEIGHT if self.is_landscape else Dimensions.A4_WIDTH
+        h = Dimensions.A4_WIDTH if self.is_landscape else Dimensions.A4_HEIGHT
         self.setRect(0, 0, w, h)
         
     def set_landscape(self, is_landscape): 
@@ -35,11 +32,11 @@ class PageItem(QGraphicsRectItem):
     def paint(self, painter, option, widget=None):
         super().paint(painter, option, widget)
         if self.is_editing: 
-            pen = QPen(QColor(255, 215, 0), 5)
+            pen = QPen(Colors.HANDLE_ORANGE, 5)
             painter.setPen(pen)
             painter.drawRect(self.boundingRect())
         elif self.is_selected: 
-            pen = QPen(QColor(0, 150, 255), 5)
+            pen = QPen(Colors.SELECTION_BLUE, 5)
             pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
             painter.setPen(pen)
             painter.drawRect(self.boundingRect())
@@ -61,7 +58,6 @@ class EditableImageItem(QGraphicsPixmapItem):
     def __init__(self, pixmap, parent_page, source_path, orig_pdf_path=None, orig_page_num=None, regulated_path=None, corner_points=None):
         super().__init__()
         
-        # Forza il click sull'intero rettangolo ignorando la trasparenza (Fix Firme)
         self.setShapeMode(QGraphicsPixmapItem.ShapeMode.BoundingRectShape)
         
         self.original_pixmap = pixmap
@@ -128,8 +124,8 @@ class EditableImageItem(QGraphicsPixmapItem):
             
         pixmap = self.pixmap()
         margine = 10.0 
-        pw = A4_HEIGHT if self.parent_page.is_landscape else A4_WIDTH
-        ph = A4_WIDTH if self.parent_page.is_landscape else A4_HEIGHT
+        pw = Dimensions.A4_HEIGHT if self.parent_page.is_landscape else Dimensions.A4_WIDTH
+        ph = Dimensions.A4_WIDTH if self.parent_page.is_landscape else Dimensions.A4_HEIGHT
         
         max_w = pw - (margine * 2)
         max_h = ph - (margine * 2)
@@ -161,22 +157,22 @@ class EditableImageItem(QGraphicsPixmapItem):
         canvas_view = self.scene().views()[0] if self.scene() and self.scene().views() else None
         
         menu = QMenu()
-        menu.setStyleSheet("background-color: #2a2a2a; color: white; border: 1px solid #4facfe;") 
+        menu.setStyleSheet(Styles.MENU_STYLE) 
 
         if canvas_view:
-            action_copy = QAction("📄 Copia", menu)
+            action_copy = QAction(Strings.MENU_COPY, menu)
             action_copy.triggered.connect(canvas_view.action_copy)
             menu.addAction(action_copy)
             
-            action_paste = QAction("📋 Incolla", menu)
+            action_paste = QAction(Strings.MENU_PASTE, menu)
             action_paste.setEnabled(len(canvas_view._internal_clipboard) > 0)
             action_paste.triggered.connect(canvas_view.action_paste)
             menu.addAction(action_paste)
             menu.addSeparator()
         
         export_menu = menu.addMenu("📦 Modalità Esportazione")
-        action_force_raster = QAction("🗜️ Forza Raster (Comprimi)", export_menu)
-        action_force_native = QAction("📄 Forza Nativo (Originale)", export_menu)
+        action_force_raster = QAction(Strings.MENU_FORCE_RASTER, export_menu)
+        action_force_native = QAction(Strings.MENU_FORCE_NATIVE, export_menu)
         
         def force_mode(m):
             for i in selected_items: 
@@ -215,7 +211,7 @@ class EditableImageItem(QGraphicsPixmapItem):
         menu.addAction(action_advanced)
         menu.addSeparator() 
         
-        action_delete = QAction("🗑️ Elimina Immagine", menu)
+        action_delete = QAction(Strings.MENU_DELETE, menu)
         action_delete.triggered.connect(lambda: [self.scene().removeItem(item) for item in selected_items] and (self.scene().views()[0].save_workspace() if self.scene() and self.scene().views() else None))
         menu.addAction(action_delete)
         
@@ -227,7 +223,7 @@ class EditableImageItem(QGraphicsPixmapItem):
         if self.is_editable:
             rect = QRectF(self.pixmap().rect())
             if self.isSelected():
-                pen = QPen(QColor(0, 150, 255))
+                pen = QPen(Colors.SELECTION_BLUE)
                 pen.setCosmetic(True) 
                 pen.setWidth(2)
                 pen.setStyle(Qt.PenStyle.DashLine)
@@ -265,7 +261,7 @@ class EditableImageItem(QGraphicsPixmapItem):
         br = view.mapFromScene(self.mapToScene(rect.bottomRight()))
         tc = view.mapFromScene(self.mapToScene(QPointF(rect.center().x(), rect.top())))
         
-        H = float(_HANDLE_PX)
+        H = float(Dimensions.HANDLE_PX)
         
         in_toggle = QRectF(tl.x(), tl.y(), H, H).contains(epos_vp_f)
         in_resize = QRectF(br.x() - H, br.y() - H, H, H).contains(epos_vp_f)

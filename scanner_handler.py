@@ -47,8 +47,6 @@ def get_available_scanners(method="TWAIN", res_dir="res"):
 
 
 def scan_pages(scanner_id, method="TWAIN", res_dir="res", temp_dir="temp"):
-    # FIX AMILOIDE: Usiamo direttamente temp_dir (che da main_window è già temp/images)
-    # invece di creare una sottocartella /images annidata.
     target_dir = temp_dir 
     os.makedirs(target_dir, exist_ok=True)
     
