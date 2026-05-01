@@ -245,7 +245,7 @@ class EditorToolbar(QFrame):
         title_row.setSpacing(4)
         
         lbl_title = QLabel("MODALITÀ EDITOR")
-        lbl_title.setStyleSheet(f"font-weight: bold; color: #fff; font-size: 13px; border-bottom: 1px solid {Colors.HEX_ACCENT}; padding-bottom: 5px;")
+        lbl_title.setStyleSheet(f"font-weight: bold; color: white; font-size: 13px; border: 1px solid {Colors.HEX_ACCENT}; border-radius: 4px; padding: 4px;")
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_row.addWidget(lbl_title, stretch=1)
         

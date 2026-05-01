@@ -37,11 +37,11 @@ class Colors:
     TRANSPARENT = QColor(0, 0, 0, 0)
     
     # --- Colori HEX per Fogli di Stile (CSS) ---
-    HEX_ACCENT = "#4facfe"
+    HEX_ACCENT = "#0c5696"
     HEX_SUCCESS = "#4ade80"
     HEX_WARNING = "#ffaa00"
-    HEX_DANGER = "#ff4444"
-    HEX_DANGER_HOVER = "#cc0000"
+    HEX_DANGER = "#a40000"
+    HEX_DANGER_HOVER = "#ff4444"
     HEX_BG_DARK = "#1a1a1a"
     HEX_BG_LIGHTER = "#2a2a2a"
     HEX_BG_DIALOG = "#2b2b2b"
@@ -117,10 +117,66 @@ class Styles:
         QWidget#subgroup {{ background: transparent; border: none; }}
     """
     
+    FAB_DANGER_STYLE = f"""
+        QPushButton {{
+            background-color: {Colors.HEX_DANGER}; 
+            color: white; 
+            font-size: 26px; 
+            font-weight: bold; 
+            border: none; 
+            border-radius: 28px;
+        }}
+        QPushButton:hover {{
+            background-color: {Colors.HEX_DANGER_HOVER};
+        }}
+        QPushButton:pressed {{
+            background-color: #aa0000;
+        }}
+    """
+    
+    FAB_PRIMARY_STYLE = f"""
+        QPushButton {{
+            background-color: {Colors.HEX_ACCENT}; 
+            color: white; 
+            font-size: 26px; 
+            font-weight: bold; 
+            border: none; 
+            border-radius: 28px;
+        }}
+        QPushButton:hover {{
+            background-color: #6fb9fe;
+        }}
+        QPushButton:pressed {{
+            background-color: #3b88d4;
+        }}
+    """
+    
     MENU_STYLE = f"""
-        background-color: {Colors.HEX_BG_LIGHTER}; 
-        color: white; 
-        border: 1px solid {Colors.HEX_ACCENT};
+        QMenu {{
+            background-color: {Colors.HEX_BG_LIGHTER}; 
+            color: white; 
+            border: 1px solid {Colors.HEX_ACCENT};
+        }}
+        QMenu::item {{
+            padding: 5px 25px 5px 20px;
+            background: transparent;
+        }}
+        QMenu::item:disabled {{
+            color: #777777;
+        }}
+        QMenu::item:selected {{
+            background-color: {Colors.HEX_ACCENT};
+            color: white;
+        }}
+        QMenu::item:selected:disabled {{
+            background-color: transparent;
+            color: #777777;
+        }}
+        QMenu::separator {{
+            height: 1px;
+            background: {Colors.HEX_BORDER};
+            margin: 4px 0px 4px 0px;
+        }}
     """
 
 class Strings:

@@ -451,17 +451,11 @@ class CanvasEditor(QGraphicsView):
         if self.pages:
             self.btn_fab_new.setText("🗑️")
             self.btn_fab_new.setToolTip("Nuovo documento (svuota canvas)\n[SHIFT+click] per saltare la conferma")
-            self.btn_fab_new.setStyleSheet(
-                "background-color: #7a1a1a; color: white; font-size: 26px; font-weight: bold; "
-                "border: none; border-radius: 28px;"
-            )
+            self.btn_fab_new.setStyleSheet(Styles.FAB_DANGER_STYLE)
         else:
             self.btn_fab_new.setText("📄")
             self.btn_fab_new.setToolTip("Aggiungi nuova pagina vuota")
-            self.btn_fab_new.setStyleSheet(
-                "background-color: #0078d7; color: white; font-size: 26px; font-weight: bold; "
-                "border: none; border-radius: 28px;"
-            )
+            self.btn_fab_new.setStyleSheet(Styles.FAB_PRIMARY_STYLE)
         self.btn_fab_new.show()
 
     def _on_fab_clicked(self):
