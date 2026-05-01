@@ -1507,6 +1507,7 @@ class CanvasEditor(QGraphicsView):
                 item.regulated_path = regulated_path
                 item.corner_points = corner_points
                 item.apply_transform(shift_center=True)
+                item.maximize_in_page()
                 self.save_workspace()
 
     def request_advanced_adjustment_for_items(self, items):
@@ -1538,26 +1539,27 @@ class CanvasEditor(QGraphicsView):
             return
             
         item = EditableImageItem(QPixmap.fromImage(img), page, lpath, orig_pdf_path, orig_page_num, regulated_path, corner_points)
-        pw = Dimensions.A4_HEIGHT if page.is_landscape else Dimensions.A4_WIDTH
-        ph = Dimensions.A4_WIDTH if page.is_landscape else Dimensions.A4_HEIGHT
-        
-        scale = min((pw - 20.0) / item.pixmap().width(), (ph - 20.0) / item.pixmap().height())
-        item.scale_x = scale
-        item.scale_y = scale
-        item.apply_transform(False)
-        
-        ws = item.pixmap().width() * scale
-        hs = item.pixmap().height() * scale
         
         if center or not drop_pos: 
-            x = (pw - ws) / 2
-            y = (ph - hs) / 2
+            item.maximize_in_page()
         else: 
+            pw = Dimensions.A4_HEIGHT if page.is_landscape else Dimensions.A4_WIDTH
+            ph = Dimensions.A4_WIDTH if page.is_landscape else Dimensions.A4_HEIGHT
+            
+            scale = min((pw - 20.0) / item.pixmap().width(), (ph - 20.0) / item.pixmap().height())
+            item.scale_x = scale
+            item.scale_y = scale
+            item.apply_transform(False)
+            
+            ws = item.pixmap().width() * scale
+            hs = item.pixmap().height() * scale
+            
             lp = page.mapFromScene(drop_pos)
             x = lp.x() - ws / 2
             y = lp.y() - hs / 2
+                
+            item.setPos(x, y)
             
-        item.setPos(x, y)
         if self.is_editing_mode and page == self.active_page: 
             item.set_editable(True)
             

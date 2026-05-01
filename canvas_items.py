@@ -148,7 +148,7 @@ class EditableImageItem(QGraphicsPixmapItem):
             return
             
         pixmap = self.pixmap()
-        margine = 10.0 
+        margine = 0.0 
         pw = Dimensions.A4_HEIGHT if self.parent_page.is_landscape else Dimensions.A4_WIDTH
         ph = Dimensions.A4_WIDTH if self.parent_page.is_landscape else Dimensions.A4_HEIGHT
         
