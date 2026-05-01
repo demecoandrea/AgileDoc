@@ -13,7 +13,6 @@ class PageItem(QGraphicsRectItem):
         self.is_landscape = is_landscape
         self._update_rect()
         self.setPos(0, y_offset)
-        self.setBrush(QBrush(Qt.GlobalColor.white))
         
         self.is_selected = False
         self.is_editing = False
@@ -29,24 +28,50 @@ class PageItem(QGraphicsRectItem):
         self._update_rect()
         self.update()
 
+    def boundingRect(self):
+        # Sovrascriviamo il boundingRect per far sì che la scena consideri
+        # anche l'area occupata dal bordo esterno spesso quando deve ridisegnare.
+        # Aggiungiamo un margine di 8px per contenere comodamente il tratto di selezione.
+        margin = 8.0
+        return self.rect().adjusted(-margin, -margin, margin, margin)
+
     def paint(self, painter, option, widget=None):
-        super().paint(painter, option, widget)
-        if self.is_editing: 
-            pen = QPen(Colors.HANDLE_ORANGE, 5)
-            painter.setPen(pen)
-            painter.drawRect(self.boundingRect())
-        elif self.is_selected: 
-            pen = QPen(Colors.SELECTION_BLUE, 5)
-            pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-            painter.setPen(pen)
-            painter.drawRect(self.boundingRect())
-        else: 
-            pen = QPen(QColor(100, 100, 100), 1)
-            painter.setPen(pen)
-            painter.drawRect(self.boundingRect())
+        # Rimuoviamo la selezione tratteggiata di default di Qt
+        option.state &= ~QStyle.StateFlag.State_HasFocus
+        
+        rect = self.rect()
+        
+        # 1. Disegna l'area della pagina completamente bianca (nessun bordo)
+        painter.fillRect(rect, Qt.GlobalColor.white)
+        
+        # 2. Disegna un bordino nero sottile esattamente sul perimetro
+        pen_bordo = QPen(Colors.BLACK, 1)
+        pen_bordo.setCosmetic(True) # Rimane di 1px a qualsiasi livello di zoom
+        painter.setPen(pen_bordo)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(rect)
+        
+        # 3. Disegna l'indicatore di Selezione o Editing COMPLETAMENTE ALL'ESTERNO
+        if self.is_editing or self.is_selected:
+            if self.is_editing:
+                pen_stato = QPen(Colors.HANDLE_ORANGE, 5)
+            else:
+                pen_stato = QPen(Colors.SELECTION_BLUE, 5)
+            
+            pen_stato.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+            painter.setPen(pen_stato)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            
+            # Espandiamo il rettangolo di 3 pixel. 
+            # Poiché il tratto è largo 5 (2.5px dentro, 2.5px fuori rispetto alla linea su cui viene disegnato),
+            # traslando il tracciato di 3px verso l'esterno evitiamo ogni sovrapposizione
+            # con l'area bianca e con il bordino nero.
+            painter.drawRect(rect.adjusted(-3, -3, 3, 3))
 
     def set_editing_mode(self, is_editing):
         self.is_editing = is_editing
+        # Se stiamo editando togliamo il clip, così se ridimensioniamo un'immagine
+        # e sborda leggermente, possiamo vedere la maniglia comodamente.
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, not is_editing)
         for child in self.childItems():
             if hasattr(child, 'set_editable'): 

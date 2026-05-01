@@ -629,7 +629,7 @@ class MainWindow(QMainWindow):
         
         self.txt_selection_info = QLineEdit()
         self.txt_selection_info.setReadOnly(True)
-        self.txt_selection_info.setStyleSheet(f"background-color: transparent; border: none; color: {Colors.HEX_ACCENT}; font-weight: bold;")
+        self.txt_selection_info.setStyleSheet(f"background-color: transparent; border: none; color: {Colors.HEX_THEME_TEXT}; font-weight: bold;")
         self.txt_selection_info.setFixedWidth(250) 
         self.txt_selection_info.setText("")
         bottom_layout.addWidget(self.txt_selection_info)

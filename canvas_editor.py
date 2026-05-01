@@ -612,7 +612,7 @@ class CanvasEditor(QGraphicsView):
 
     def delete_page(self, page):
         if self.is_editing_mode and page == self.active_page: 
-            return
+            self.set_editing_mode(False)
             
         self._commit_deletion() 
         self._pending_deletions = []

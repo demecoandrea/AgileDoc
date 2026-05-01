@@ -37,6 +37,7 @@ class Colors:
     TRANSPARENT = QColor(0, 0, 0, 0)
     
     # --- Colori HEX per Fogli di Stile (CSS) ---
+    HEX_THEME_TEXT = "#dcdcdc"
     HEX_ACCENT = "#0c5696"
     HEX_SUCCESS = "#4ade80"
     HEX_WARNING = "#ffaa00"
