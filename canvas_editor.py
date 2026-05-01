@@ -705,6 +705,17 @@ class CanvasEditor(QGraphicsView):
         key = event.key()
         modifiers = event.modifiers()
         
+        # Se un elemento di testo ha il focus, lascialo gestire i suoi eventi (come copia e incollare testo)
+        if self.is_editing_mode:
+            focus_item = self.scene.focusItem()
+            if focus_item and hasattr(focus_item, "textInteractionFlags") and (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditable):
+                if key == Qt.Key.Key_Escape:
+                    focus_item.clearFocus()
+                    event.accept()
+                else:
+                    super().keyPressEvent(event)
+                return
+
         if key == Qt.Key.Key_Control:
             self._ctrl_pressed = True
             if self._is_dragging_items:
@@ -723,12 +734,6 @@ class CanvasEditor(QGraphicsView):
         
         if key == Qt.Key.Key_Escape:
             if self.is_editing_mode: 
-                focus_item = self.scene.focusItem()
-                if focus_item and hasattr(focus_item, "textInteractionFlags") and (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditable):
-                    focus_item.clearFocus()
-                    event.accept()
-                    return
-                    
                 if self.current_editor_tool != "select":
                     self.editor_toolbar.set_active_tool("select", silent=False)
                     event.accept()
@@ -741,11 +746,6 @@ class CanvasEditor(QGraphicsView):
             return
             
         if self.is_editing_mode:
-            focus_item = self.scene.focusItem()
-            if focus_item and hasattr(focus_item, "textInteractionFlags") and (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditable):
-                super().keyPressEvent(event)
-                return
-
             sel_items = [i for i in self.scene.selectedItems() if isinstance(i, (EditableImageItem, AnnotationFreeTextItem, AnnotationTextBoxItem, AnnotationPathItem))]
             if sel_items:
                 if key == Qt.Key.Key_D:
@@ -1191,7 +1191,18 @@ class CanvasEditor(QGraphicsView):
         if event.button() == Qt.MouseButton.LeftButton:
             click_pos = self.mapToScene(event.pos())
             item = self.scene.itemAt(click_pos, self.transform())
-            page_clicked = item if isinstance(item, PageItem) else (item.parent_page if isinstance(item, EditableImageItem) else None)
+            page_clicked = None
+            
+            # Scorri la gerarchia verso l'alto per trovare la pagina associata
+            current = item
+            while current is not None:
+                if isinstance(current, PageItem):
+                    page_clicked = current
+                    break
+                elif hasattr(current, 'parent_page') and current.parent_page is not None:
+                    page_clicked = current.parent_page
+                    break
+                current = current.parentItem()
             
             if page_clicked and (not self.is_editing_mode or self.active_page != page_clicked): 
                 self.set_editing_mode(True, target_page=page_clicked)

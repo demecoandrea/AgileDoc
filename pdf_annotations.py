@@ -23,6 +23,10 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         class ChildText(QGraphicsTextItem):
             def focusOutEvent(self_, event):
                 super().focusOutEvent(event)
+                # Se la perdita di focus è dovuta a un popup (come un menù contestuale),
+                # o se il click destro è stato fatto sull'elemento stesso, non deselezionare l'elemento.
+                if event.reason() == Qt.FocusReason.PopupFocusReason:
+                    return
                 QTimer.singleShot(0, self_._deferred_focus_out)
 
             def _deferred_focus_out(self_):
@@ -30,6 +34,8 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
                 app = QApplication.instance()
                 if app:
                     fw = app.focusWidget()
+                    if fw and isinstance(fw, QMenu):
+                        return
                     while fw:
                         if isinstance(fw, EditorToolbar):
                             return  
@@ -51,6 +57,17 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
                 if self_.parentItem() and self_.parentItem().is_editable:
                     self_.parentItem().start_editing()
                 super().mouseDoubleClickEvent(event)
+
+            def keyPressEvent(self_, event):
+                if event.key() == Qt.Key.Key_V and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    # Se è un FreeText, incolla solo testo puro
+                    if self_.parentItem() and type(self_.parentItem()).__name__ == "AnnotationFreeTextItem":
+                        clipboard = QApplication.clipboard()
+                        plain_text = clipboard.text()
+                        if plain_text:
+                            self_.textCursor().insertText(plain_text)
+                        return
+                super().keyPressEvent(event)
         
         self.text_item = ChildText(Strings.DEFAULT_TEXTBOX_TEXT, self)
         self.text_item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
@@ -228,6 +245,40 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
             self.start_editing()
         super().mouseDoubleClickEvent(event)
 
+    def _maximize_width(self):
+        if not self.parentItem(): return
+        p_rect = self.parentItem().rect() if hasattr(self.parentItem(), 'rect') else self.parentItem().boundingRect()
+        self.setPos(0, self.pos().y())
+        self.setRect(0, 0, p_rect.width(), self.rect().height())
+        self._update_text_layout()
+        if self.scene() and self.scene().views():
+            self.scene().views()[0].save_workspace()
+
+    def _maximize_height(self):
+        if not self.parentItem(): return
+        p_rect = self.parentItem().rect() if hasattr(self.parentItem(), 'rect') else self.parentItem().boundingRect()
+        self.setPos(self.pos().x(), 0)
+        self.setRect(0, 0, self.rect().width(), p_rect.height())
+        self._update_text_layout()
+        if self.scene() and self.scene().views():
+            self.scene().views()[0].save_workspace()
+            
+    def _center_horizontally(self):
+        if not self.parentItem(): return
+        p_rect = self.parentItem().rect() if hasattr(self.parentItem(), 'rect') else self.parentItem().boundingRect()
+        new_x = (p_rect.width() - self.rect().width()) / 2
+        self.setPos(new_x, self.pos().y())
+        if self.scene() and self.scene().views():
+            self.scene().views()[0].save_workspace()
+
+    def _center_vertically(self):
+        if not self.parentItem(): return
+        p_rect = self.parentItem().rect() if hasattr(self.parentItem(), 'rect') else self.parentItem().boundingRect()
+        new_y = (p_rect.height() - self.rect().height()) / 2
+        self.setPos(self.pos().x(), new_y)
+        if self.scene() and self.scene().views():
+            self.scene().views()[0].save_workspace()
+
     def contextMenuEvent(self, event):
         if not self.is_editable: return
         if not self.isSelected():
@@ -252,6 +303,24 @@ class AnnotationTextBoxItem(QGraphicsRectItem):
         action_delete = QAction(Strings.MENU_DELETE, menu)
         action_delete.triggered.connect(lambda: [self.scene().removeItem(item) for item in self.scene().selectedItems()] and (self.scene().views()[0].save_workspace() if self.scene() and self.scene().views() else None))
         menu.addAction(action_delete)
+        
+        menu.addSeparator()
+        action_max_w = QAction("↔ Massimizza in larghezza", menu)
+        action_max_w.triggered.connect(self._maximize_width)
+        menu.addAction(action_max_w)
+        
+        action_max_h = QAction("↕ Massimizza in altezza", menu)
+        action_max_h.triggered.connect(self._maximize_height)
+        menu.addAction(action_max_h)
+        
+        action_cent_h = QAction("⇹ Centra orizzontalmente", menu)
+        action_cent_h.triggered.connect(self._center_horizontally)
+        menu.addAction(action_cent_h)
+        
+        action_cent_v = QAction("⇕ Centra verticalmente", menu)
+        action_cent_v.triggered.connect(self._center_vertically)
+        menu.addAction(action_cent_v)
+
         menu.exec(event.screenPos())
 
     def set_font_properties(self, family=None, size=None, bold=None, italic=None, underline=None, align_h=None, align_v=None, wrap=None):
